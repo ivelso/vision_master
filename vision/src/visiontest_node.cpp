@@ -27,6 +27,7 @@
 #include <visp3/detection/vpDetectorQRCode.h>
 #include <visp3/vision/vpPose.h>
 #include <visp_ros/vpROSRobot.h>
+#include <visp3/core/vpPixelMeterConversion.h>
 
 // #include <visp_ros/include/visp_ros/vpROSGrabber.h>
 
@@ -78,11 +79,37 @@ namespace vision
   };
 } // namespace vision
 
+void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &ip,
+                 const vpCameraParameters &cam, bool init, vpHomogeneousMatrix &cMo)
+{
+  vpPose pose;
+  double x = 0, y = 0;
+  for (unsigned int i = 0; i < point.size(); i++) {
+    vpPixelMeterConversion::convertPoint(cam, ip[i], x, y);
+    point[i].set_x(x);
+    point[i].set_y(y);
+    pose.addPoint(point[i]);
+  }
+  if (init == true) {
+    vpHomogeneousMatrix cMo_dem;
+    vpHomogeneousMatrix cMo_lag;
+    pose.computePose(vpPose::DEMENTHON, cMo_dem);
+    pose.computePose(vpPose::LAGRANGE, cMo_lag);
+    double residual_dem = pose.computeResidual(cMo_dem);
+    double residual_lag = pose.computeResidual(cMo_lag);
+    if (residual_dem < residual_lag)
+      cMo = cMo_dem;
+    else
+      cMo = cMo_lag;
+  }
+  pose.computePose(vpPose::VIRTUAL_VS, cMo);
+}
+
 int main(int argc, const char **argv)
 {
   try
   {
-    bool opt_use_camera_info = false;
+    bool opt_use_camera_info = true;
     for (int i = 0; i < argc; i++)
     {
       if (std::string(argv[i]) == "--use-camera-info")
@@ -104,7 +131,7 @@ int main(int argc, const char **argv)
     blobDetector.setGraphics(true);
     blobDetector.setGraphicsThickness(2);
     vpImagePoint detectedPoints;
-    bool init_done = false;
+    bool init_done = true;
 
     g.setImageTopic("/camera/color/image_raw/compressed");
     g.setImageTransport("jpeg");
@@ -113,6 +140,17 @@ int main(int argc, const char **argv)
       g.setCameraInfoTopic("/camera/color/camera_info");
       g.setRectify(true);
     }
+    vpCameraParameters cam(840,840,200,300);
+    
+    // 3D model of the QRcode: here we consider a 12cm by 12cm QRcode
+    std::vector<vpPoint> point;
+    point.push_back(vpPoint(-0.06, -0.06, 0)); // QRcode point 0 3D coordinates in plane Z=0
+    point.push_back(vpPoint(0.06, -0.06, 0));  // QRcode point 1 3D coordinates in plane Z=0
+    point.push_back(vpPoint(0.06, 0.06, 0));   // QRcode point 2 3D coordinates in plane Z=0
+    point.push_back(vpPoint(-0.06, 0.06, 0));  // QRcode point 3 3D coordinates in plane Z=0
+
+    vpHomogeneousMatrix cMo;
+    vpDetectorQRCode detector;
 
     g.open(I);
     std::cout << "Image size: " << I.getWidth() << " " << I.getHeight() << std::endl;
@@ -125,36 +163,39 @@ int main(int argc, const char **argv)
 
     while (1)
     {
-      try
-      {
-        g.acquire(I);
-        vpDisplay::display(I);
-        if (!init_done)
-        {
-          std::cout << "click the blob" << std::endl;
-          vpDisplay::displayText(I, vpImagePoint(10, 10), "click the blob", vpColor::red);
-          if (vpDisplay::getClick(I, detectedPoints, false))
-          {
-            std::cout << "should not be her" << std::endl;
-            blobDetector.initTracking(I, detectedPoints);
-            init_done = true;
-          }
-        }
-        else
-        {
-          std::cout << "trackiing " << std::endl;
-          blobDetector.track(I);
-        }
-        vpDisplay::displayText(I, 20, 20, "A click to quit...", vpColor::red);
-        vpDisplay::flush(I);
-        if (vpDisplay::getClick(I, false))
-          break;
-      }
 
-      catch (...)
-      {
-        init_done = false;
+      g.acquire(I);
+      bool status = detector.detect(I);
+      vpDisplay::display(I);
+
+      std::ostringstream legend;
+      legend << detector.getNbObjects() << " bar code detected";
+      vpDisplay::displayText(I, (int)I.getHeight() - 30, 10, legend.str(), vpColor::red);
+
+      vpDisplay::displayText(I, (int)I.getHeight() - 30, 10, legend.str(), vpColor::red);
+      if (status)
+      { // true if at least one QRcode is detected
+        for (size_t i = 0; i < detector.getNbObjects(); i++)
+        {
+          std::vector<vpImagePoint> p = detector.getPolygon(i); // get the four corners location in the image
+          for (size_t j = 0; j < p.size(); j++)
+          {
+            vpDisplay::displayCross(I, p[j], 14, vpColor::red, 3);
+            std::ostringstream number;
+            number << j;
+            vpDisplay::displayText(I, p[j] + vpImagePoint(15, 5), number.str(), vpColor::blue);
+          }
+          
+          computePose(point, p, cam, init_done, cMo); // resulting pose is available in cMo var
+          std::cout << "Pose translation (meter): " << cMo.getTranslationVector().t() << std::endl
+                    << "Pose rotation (quaternion): " << vpQuaternionVector(cMo.getRotationMatrix()).t() << std::endl;
+          vpDisplay::displayFrame(I, cMo, cam, 0.05, vpColor::none, 3);
+        }
       }
+      vpDisplay::displayText(I, 20, 20, "A click to quit...", vpColor::red);
+      vpDisplay::flush(I);
+      if (vpDisplay::getClick(I, false))
+        break;
     }
   }
   catch (vpException e)
