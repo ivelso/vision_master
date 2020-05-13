@@ -46,6 +46,7 @@
   <depend>visp_bridge</depend>
   <depend>vision_ros</depend>
   <depend>visp_ros</depend>
+  <depend>visp3</depend>
   <depend>visp_camera_calibration</depend>
   <depend>sensor_msgs</depend>
 
