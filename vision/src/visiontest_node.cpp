@@ -27,7 +27,9 @@
 #include <visp3/detection/vpDetectorQRCode.h>
 #include <visp3/vision/vpPose.h>
 #include <visp_ros/vpROSRobot.h>
+#include <visp3/visual_features/vpFeatureBuilder.h>
 #include <visp3/core/vpPixelMeterConversion.h>
+#include <visp3/vs/vpServo.h>
 
 // #include <visp_ros/include/visp_ros/vpROSGrabber.h>
 
@@ -84,13 +86,15 @@ void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &i
 {
   vpPose pose;
   double x = 0, y = 0;
-  for (unsigned int i = 0; i < point.size(); i++) {
+  for (unsigned int i = 0; i < point.size(); i++)
+  {
     vpPixelMeterConversion::convertPoint(cam, ip[i], x, y);
     point[i].set_x(x);
     point[i].set_y(y);
     pose.addPoint(point[i]);
   }
-  if (init == true) {
+  if (init == true)
+  {
     vpHomogeneousMatrix cMo_dem;
     vpHomogeneousMatrix cMo_lag;
     pose.computePose(vpPose::DEMENTHON, cMo_dem);
@@ -140,8 +144,7 @@ int main(int argc, const char **argv)
       g.setCameraInfoTopic("/camera/color/camera_info");
       g.setRectify(true);
     }
-    vpCameraParameters cam(840,840,200,300);
-    
+
     // 3D model of the QRcode: here we consider a 12cm by 12cm QRcode
     std::vector<vpPoint> point;
     point.push_back(vpPoint(-0.06, -0.06, 0)); // QRcode point 0 3D coordinates in plane Z=0
@@ -149,11 +152,30 @@ int main(int argc, const char **argv)
     point.push_back(vpPoint(0.06, 0.06, 0));   // QRcode point 2 3D coordinates in plane Z=0
     point.push_back(vpPoint(-0.06, 0.06, 0));  // QRcode point 3 3D coordinates in plane Z=0
 
-    vpHomogeneousMatrix cMo;
+    vpHomogeneousMatrix cMo;                       //current pose of point inimage frame.
+    vpHomogeneousMatrix cdMo(0, 0, 0.75, 0, 0, 0); //setpoint
     vpDetectorQRCode detector;
 
+    // ibvs parameters
+    vpHomogeneousMatrix wMo; // world to object
+    //robot position world to camera
+    vpHomogeneousMatrix wMc(0.15, -0.1, 1., vpMath::rad(10), vpMath::rad(-10), vpMath::rad(50));
+
+    vpServo task;
+    task.setServo(vpServo::EYEINHAND_L_cVe_eJe);// changed to give out the velocity 
+    task.setInteractionMatrixType(vpServo::CURRENT);
+    task.setLambda(0.5);
+    vpFeaturePoint pd[4], fp[4]; // desired points
+    bool init_tracker = false;
     g.open(I);
     std::cout << "Image size: " << I.getWidth() << " " << I.getHeight() << std::endl;
+    vpCameraParameters cam;
+    bool camerainfoRecived = false;
+    //get the camera info from the topic
+    while (!camerainfoRecived)
+    {
+      camerainfoRecived = g.getCameraInfo(cam);
+    }
 
 #ifdef VISP_HAVE_X11
     vpDisplayX d(I);
@@ -178,6 +200,9 @@ int main(int argc, const char **argv)
         for (size_t i = 0; i < detector.getNbObjects(); i++)
         {
           std::vector<vpImagePoint> p = detector.getPolygon(i); // get the four corners location in the image
+                                                                // vpFeaturePoint fP
+    
+
           for (size_t j = 0; j < p.size(); j++)
           {
             vpDisplay::displayCross(I, p[j], 14, vpColor::red, 3);
@@ -185,8 +210,28 @@ int main(int argc, const char **argv)
             number << j;
             vpDisplay::displayText(I, p[j] + vpImagePoint(15, 5), number.str(), vpColor::blue);
           }
-          
+          // compute the pose for where the camera is in comparison to the qr code.
           computePose(point, p, cam, init_done, cMo); // resulting pose is available in cMo var
+          for (unsigned int i = 0; i < 4; i++)
+          {
+            if (!init_tracker)
+            {
+              std::cout<<i;
+              point[i].track(cdMo);
+              vpFeatureBuilder::create(pd[i], point[i]);
+              point[i].track(cMo);
+              vpFeatureBuilder::create(fp[i], point[i]);
+              task.addFeature(fp[i], pd[i]);
+              init_tracker=true;
+            }
+              point[i].track(cMo);
+              vpFeatureBuilder::create(fp[i], point[i]);
+
+       
+          }
+               vpColVector v = task.computeControlLaw();
+               
+            std::cout << v << "vector"<< std::endl;
           std::cout << "Pose translation (meter): " << cMo.getTranslationVector().t() << std::endl
                     << "Pose rotation (quaternion): " << vpQuaternionVector(cMo.getRotationMatrix()).t() << std::endl;
           vpDisplay::displayFrame(I, cMo, cam, 0.05, vpColor::none, 3);
@@ -194,9 +239,12 @@ int main(int argc, const char **argv)
       }
       vpDisplay::displayText(I, 20, 20, "A click to quit...", vpColor::red);
       vpDisplay::flush(I);
+      // compute the velocity for the robot.
+
       if (vpDisplay::getClick(I, false))
         break;
     }
+    task.kill();
   }
   catch (vpException e)
   {
