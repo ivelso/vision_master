@@ -111,6 +111,7 @@ void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &i
 
 int main(int argc, const char **argv)
 {
+  
   try
   {
     bool opt_use_camera_info = true;
