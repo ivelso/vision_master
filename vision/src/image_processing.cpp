@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <bits/stdc++.h> 
 #include <opencv2/opencv.hpp>
 #include "opencv2/features2d.hpp"
 #include <opencv2/imgproc/imgproc.hpp>
@@ -40,9 +41,11 @@ namespace vision
         ImageNode(void)
         {
             // get the image that is the referance. 
-            img1 = imread("/home/student/catkin_ws/src/vision_master/vision/qr2.png", IMREAD_GRAYSCALE);
-            findFeaturePoints(img1); // find the features to track 
+            //img1 = imread("/home/student/catkin_ws/src/vision_master/vision/qr2.png", IMREAD_GRAYSCALE);
+            //findFeaturePoints(img1); // find the features to track 
+            setTargetPoints();
             this->subscriber_colour_image = nh.subscribe<sensor_msgs::Image>("camera/color/image_raw/", 1, &ImageNode::callback_colour_image, this);
+
 
 
 
@@ -56,23 +59,78 @@ namespace vision
             cv::Mat frame = cv_bridge::toCvShare(colour_image, sensor_msgs::image_encodings::BGR8)->image;
 
             cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
-
+            FindBloobs(frame);
             //cv::imshow("cv_img", frame);
 
-            findFeaturePoints(frame);
+            //findFeaturePoints(frame);
+
         }
 
+        /**
+         * set the target position for the features. 
+        */
         void setTargetPoints()
         {
+            //150,150 
+            //150,300 
+            //set up the target 
+            targetKeypoints.push_back(cv::KeyPoint(150, 150, 10));
+            targetKeypoints.push_back(cv::KeyPoint(300, 150, 10));
+            targetKeypoints.push_back(cv::KeyPoint(150, 300, 10));
+            targetKeypoints.push_back(cv::KeyPoint(300, 300, 10));
+
+
         }
 
-        void getFeaturePoints()
+        void getFeaturePoints(std::vector<KeyPoint>&keypoints)
         {
+            keypoints = imageKeypoints;
         }
 
-        void getTargetPoint()
-        {
+        /**
+         *Find round blobs.
+         **/
+
+        void FindBloobs(cv::Mat &frame) {
+            std::vector<KeyPoint> keyPoints;
+            std::vector<KeyPoint> GoodkeyPoints;
+            Ptr<SimpleBlobDetector> detector = SimpleBlobDetector::create();
+            float averageSize= 0;
+            // Detect blobs
+            detector->detect(frame, keyPoints);
+
+
+            for (int i =0;i < keyPoints.size(); i++) {
+                averageSize += keyPoints[i].size;
+                //std::cout<<" number"<<keyPoints[i].pt<< "size"<<keyPoints[i].size<< std::endl;
+            }
+            averageSize = averageSize/ keyPoints.size();
+            // find the average size of the keypoints to filter out other keypoints that is not the target. 
+            for (int i =0;i < keyPoints.size(); i++) {
+                if (std::abs(keyPoints[i].size-averageSize)<(averageSize/8)) {
+                    GoodkeyPoints.push_back(keyPoints[i]);
+                }
+            }
+
+            cv::Mat keypointsMat;
+            drawKeypoints(frame, GoodkeyPoints, keypointsMat, cv::Scalar(0, 0, 255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            drawKeypoints(keypointsMat, targetKeypoints, keypointsMat, cv::Scalar(0, 0, 255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            cv::imshow("keypoints", keypointsMat);
+            waitKey(2);
+
         }
+
+        void getTargetPoint(std::vector<KeyPoint>&keypoints)
+        {
+            //150
+
+            keypoints = targetKeypoints;
+
+        }
+
+        /**
+         * surf keypoints. find keypoints in the image 
+         **/
         void findFeaturePoints(cv::Mat &frame) {
             int minHessian = 400;
             Ptr<SURF> detector = SURF::create(minHessian);
@@ -80,13 +138,13 @@ namespace vision
             std::vector<KeyPoint> keypoints;
             cv::Mat descriptor;
             detector->detectAndCompute(frame, noArray(), keypoints, descriptor);
-            
+
             if (firstRound == true) {
-                TargetKeypoints = keypoints;
+                targetKeypoints = keypoints;
                 targetDescriptor = descriptor;
                 targetFrame = frame;
                 firstRound= false;
-               
+
             }
             else {
 
@@ -113,19 +171,20 @@ namespace vision
                         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
                         {
                             good_matches.push_back(knn_matches[i][0]);
-                            
+
                         }
                     }
-                    
+
                     if (good_matches.size()>0) {
                         //-- Draw matches
                         Mat img_matches;
-                        drawMatches(targetFrame, TargetKeypoints, frame, keypoints, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+                        drawMatches(targetFrame, targetKeypoints, frame, keypoints, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
                         //-- Show detected matches
-                    
+
                         imshow("Good Matches", img_matches);
                     }
-                }else {
+                }
+                else {
                     ROS_INFO("missing descriptors from the image stream ");
                 }
 
@@ -136,11 +195,25 @@ namespace vision
     private:
         ros::Subscriber subscriber_colour_image, subscriber_depth;
         ros::NodeHandle nh;
-        std::vector<KeyPoint> TargetKeypoints;
+        std::vector<KeyPoint> targetKeypoints, imageKeypoints;
         cv::Mat targetDescriptor;
         cv::Mat targetFrame;
         cv::Mat img1;
+
         bool firstRound = true;
+
+        // Function for calculating median 
+        double findMedian(int a[], int n)
+        {
+            // First we sort the array 
+            std::sort(a, a + n);
+
+            // check for even case 
+            if (n % 2 != 0)
+                return (double)a[n / 2];
+
+            return (double)(a[(n - 1) / 2] + a[n / 2]) / 2.0;
+        }
 
     };
 } // namespace vision
