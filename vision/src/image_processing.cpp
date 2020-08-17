@@ -12,6 +12,7 @@
 //#ifdef HAVE_OPENCV_XFEATURES2D
 #include "opencv2/highgui.hpp"
 #include "opencv2/xfeatures2d.hpp"
+//#include <visp/vpFeaturePoint.h>
 /**
  *This class is responsible for finding the feature points in the image.
  *
@@ -31,12 +32,7 @@ namespace vision
     class ImageNode
     {
     public:
-        /*
-                ImageNode();
-                void setTargetPoints();
-                void getTargetPoint();
-                void getFeaturePoints();
-                */
+      
 
         ImageNode(void)
         {
@@ -67,7 +63,7 @@ namespace vision
         }
 
         /**
-         * set the target position for the features. 
+         * set the target position for the features.
         */
         void setTargetPoints()
         {
@@ -122,14 +118,13 @@ namespace vision
 
         void getTargetPoint(std::vector<KeyPoint>&keypoints)
         {
-            //150
 
             keypoints = targetKeypoints;
 
         }
 
         /**
-         * surf keypoints. find keypoints in the image 
+         * surf keypoints. find keypoints in the image
          **/
         void findFeaturePoints(cv::Mat &frame) {
             int minHessian = 400;
