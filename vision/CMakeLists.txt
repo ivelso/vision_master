@@ -10,6 +10,10 @@ find_package(catkin REQUIRED COMPONENTS
   visp_bridge
   visp_ros
   message_filters
+  moveit_ros_planning_interface
+  moveit_msgs
+  moveit_commander moveit_core
+  moveit_ros_move_group
 
  
 )

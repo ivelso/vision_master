@@ -12,11 +12,25 @@
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/Image.h>
 #include "opencv2/features2d.hpp"
-
+#include <geometry_msgs/Twist.h>
+#include <geometry_msgs/Vector3.h>
 // visp includes
 #include <visp/vpFeaturePoint.h>
 #include <visp/vpServo.h>
 
+// moveit
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
+
+#include <moveit_msgs/DisplayRobotState.h>
+#include <moveit_msgs/DisplayTrajectory.h>
+
+#include <moveit_msgs/AttachedCollisionObject.h>
+#include <moveit_msgs/CollisionObject.h>
+
+#include <moveit_visual_tools/moveit_visual_tools.h>
+
+#include "turtleBot_pan.h"
 //#ifdef HAVE_OPENCV_XFEATURES2D
 #include "opencv2/highgui.hpp"
 #include "opencv2/xfeatures2d.hpp"
@@ -46,38 +60,114 @@ namespace vision
             //img1 = imread("/home/student/catkin_ws/src/vision_master/vision/qr2.png", IMREAD_GRAYSCALE);
             //findFeaturePoints(img1); // find the features to track
             setTargetPoints();
+            ros::AsyncSpinner spinner(1); // make the program use multiple treads.
+            spinner.start();
             // changed the rostopic to the simulated.
             //this->subscriber_colour_image = nh.subscribe<sensor_msgs::Image>("camera/rgb/image_raw/", 1, &ImageNode::callback_colour_image, this);
             //this->subscriber_depth = nh.subscribe<sensor_msgs::Image>("camera/depth/image_raw/", 1, &ImageNode::callback_depth, this);
-            message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/color/image_raw/", 1);
-            message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(nh, "/camera/depth/image_rect_raw", 1);
+            message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/color/image_raw/", 3); //changed the cue to 3 from 1 //camera/color/image_raw/
+            message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(nh, "camera/aligned_depth_to_color/image_raw/", 3);
             // http://library.isr.ist.utl.pt/docs/roswiki/message_filters.html
-            //message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/rgb/image_raw/", 1);
+            //message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/rgb/image_raw/", 1);//CompressedImage
             //message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(nh, "camera/depth/image_raw/", 1);
             message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(rgb_image_sub, depth_image_sub, 10);
             //boost::bind(&ImageNode::callback_images, this,_1, _2);
             sync.registerCallback(boost::bind(&ImageNode::callback_images, this, _1, _2));
-            ros::Rate loop_rate(10);
+            ros::Rate loop_rate(1);
             vpServo task;
-            task.setServo(vpServo::EYEINHAND_CAMERA);
-            task.setInteractionMatrixType(vpServo::CURRENT);
+            task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
+            task.setInteractionMatrixType(vpServo::DESIRED, vpServo::PSEUDO_INVERSE);
+              //task.setInteractionMatrixType(vpServo::CURRENT);
+            vpVelocityTwistMatrix cVe;
+             vpMatrix eJe;
+
+            //)
             task.setLambda(0.5);
-            task.addFeature(s[0],sd[0] );
-            task.addFeature(s[1],sd[1] );
-            task.addFeature(s[2],sd[2] );
-            task.addFeature(s[3],sd[3] );
+            task.addFeature(s[0], sd[0]);
+            task.addFeature(s[1], sd[1]);
+            task.addFeature(s[2], sd[2]);
+            task.addFeature(s[3], sd[3]);
+            vpTurtlebotPan robot;
+
+            this->publisher_state = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+            //moving
+
+            static const std::string PLANNING_GROUP = "arm";
+            moveit::planning_interface::MoveGroupInterface move_group(PLANNING_GROUP); //PLANNING_GROUP
+            const robot_state::JointModelGroup *joint_model_group =
+                move_group.getCurrentState()->getJointModelGroup(PLANNING_GROUP); //PLANNING_GROUP
+
+            moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
+            std::vector<double> joint_group_positions;
+            current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
+            robot.set_eJe(joint_group_positions[0]);
+
+            // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
+            joint_group_positions[0] = 0.0; // radians
+
+            joint_group_positions[1] = 0.0; // radians
+            joint_group_positions[2] = 0.0; // radians
+            joint_group_positions[3] = 0.0; // radians
+
+            move_group.setJointValueTarget(joint_group_positions);
+
+            //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+            move_group.move();
+            // finished moving
             while (ros::ok())
             {
-                if (!firstRound){
-                        vpColVector v = task.computeControlLaw();
-                        std::cout<< v<<std::endl;
+                if (!firstRound && !missingKeypoint)
+                {
+                    cVe = robot.get_cVe();
+                    task.set_cVe(cVe);
+                    eJe = robot.get_eJe();
+                    task.set_eJe(eJe);
+                    vpColVector v = task.computeControlLaw();
+
+                    task.print();
+                    current_state = move_group.getCurrentState();
+                    std::vector<double> current_joint_group_pos;
+                    current_state->copyJointGroupPositions(joint_model_group, current_joint_group_pos);
+                    for (int i = 0; i < joint_group_positions.size(); i++)
+                        std::cout << joint_group_positions.at(i) << std::endl;
+                    robot.set_eJe(current_joint_group_pos[0]);
+                    double velocity = v[5] * 0.005; 
+                    if (velocity>0.1){
+                        velocity=0.1;
+                    }
+                    if (velocity<-0.1){
+                        velocity=-0.1;
+                    }
+                    joint_group_positions[0] = current_joint_group_pos[0] + velocity;
+                    move_group.setJointValueTarget( joint_group_positions); // set joint position for the arm
+                    setSpeed(v[0], v[5]);                                  // set base speed
+                    // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
+                    //joint_group_positions[0] = -1.0; // radians
+                    //move_group.setJointValueTarget(joint_group_positions);
+
+                    //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+                    move_group.move(); // make the arm move
                 }
-            
+                else
+                {
+                    setSpeed(0, 0);
+                    //current_state = move_group.getCurrentState();
+                    //current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
+                    //move_group.setJointValueTarget(joint_group_positions);
+                    //move_group.move();
+                    //move_group.stop();
+                }
+                // ros::waitForShutdown();
                 ros::spinOnce();
                 loop_rate.sleep();
                 // ROS_INFO("");
             }
+            setSpeed();
+
             task.kill();
+            spinner.stop();
         }
 
         void callback_images(const sensor_msgs::ImageConstPtr &colour_image, const sensor_msgs::ImageConstPtr &depth_image)
@@ -85,13 +175,12 @@ namespace vision
             //ROS_INFO("got image");
 
             // Get image message as an OpenCV Mat object (most functions you use for image processing will want this)
-            cv::Mat frame = cv_bridge::toCvShare(colour_image, sensor_msgs::image_encodings::BGR8)->image;
+            cv::Mat frame = cv_bridge::toCvShare(colour_image, sensor_msgs::image_encodings::BGR8)->image; //sensor_msgs::image_encodings::BGR8
 
             cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
             FindBloobs(frame);
 
             //ROS_INFO("callback_depth()");
-            
 
             if (imageKeypoints.size() >= numberOfKeypoints)
             {
@@ -110,13 +199,11 @@ namespace vision
                     else
                     {
                         s[i].buildFrom(imageKeypoints[i].pt.x, imageKeypoints[i].pt.y, 0.30);
-
                     }
-                    firstRound= false;
+                    firstRound = false;
                     // s[i].print();
                 }
                 // ROS_INFO("thats the keypoints ");
-
             }
         }
         //example
@@ -147,6 +234,38 @@ namespace vision
 
             //cv::imshow("cv_depth", frame);
             //cv::waitKey(2);
+        }
+
+        // set the speed of the robot in x and W direction where ohmega is around z axis.
+        void setSpeed(float x = 0, float ohmega = 0)
+        { 
+            float MaxVelocity = 0.1;
+            if (x > MaxVelocity)
+            {
+                x = MaxVelocity;
+            }
+            if (x < -MaxVelocity)
+            {
+                x = -MaxVelocity;
+            }
+            if (ohmega > MaxVelocity)
+            {
+                ohmega = MaxVelocity;
+            }
+            if (ohmega < -MaxVelocity)
+            {
+                ohmega = -MaxVelocity;
+            }
+            geometry_msgs::Vector3 linMove, rotMove;
+            linMove.x = x;
+            rotMove.z = ohmega;
+
+            geometry_msgs::Twist movemsg;
+            movemsg.linear = linMove;
+            movemsg.angular = rotMove;
+            ROS_INFO("IP: setting wheel speed x= %.4f ohmega= %.4f", x, ohmega);
+            // publish to the topic given in the initiation function.
+            this->publisher_state.publish(movemsg);
         }
 
         void getObjectPosFromCam()
@@ -196,7 +315,7 @@ namespace vision
             {
                 averageSize += keyPoints[i].size;
 
-                std::cout << " number" << keyPoints[i].pt << "size" << keyPoints[i].size << std::endl;
+                //std::cout << " number" << keyPoints[i].pt << "size" << keyPoints[i].size << std::endl;
             }
             averageSize = averageSize / keyPoints.size();
             // find the average size of the keypoints to filter out other keypoints that is not the target.
@@ -222,6 +341,15 @@ namespace vision
             KeyPoint sortedKeypoints[4];
             float centerX = sumX / numberOfKeypoints;
             float centerY = sumY / numberOfKeypoints;
+            if (GoodkeyPoints.size() < 4)
+            {
+                missingKeypoint = true;
+            }
+            else
+            {
+                missingKeypoint = false;
+            }
+
             for (int i = 0; i < GoodkeyPoints.size(); i++)
             {
                 if (GoodkeyPoints[i].pt.x < centerX && GoodkeyPoints[i].pt.y < centerY)
@@ -242,18 +370,6 @@ namespace vision
                 }
             }
 
-            /*
-            for (int i = 0; i < GoodkeyPoints.size(); i++){
-                if (sortedKeypoints.size()==0){
-                    sortedKeypoints.push_back(GoodkeyPoints[0]);
-                }
-                if (sortedKeypoints[sortedKeypoints.size-1].pt.x>GoodkeyPoints[i].pt.x){
-                    sortedKeypoints[sortedKeypoints.size-1] = 
-                }
-
-                
-            }
-            */
             imageKeypoints.clear();
             for (int i = 0; i < numberOfKeypoints; i++)
             {
@@ -346,15 +462,16 @@ namespace vision
     private:
         ros::Subscriber subscriber_colour_image, subscriber_depth;
         ros::NodeHandle nh;
+        ros::Publisher publisher_state;
         std::vector<KeyPoint> targetKeypoints, imageKeypoints;
         cv::Mat targetDescriptor;
         cv::Mat targetFrame;
         cv::Mat img1;
+        bool missingKeypoint = true;
         static constexpr double DEPTH_SCALE = 0.001;
         static const int numberOfKeypoints = 4;
         vpFeaturePoint sd[numberOfKeypoints];
         vpFeaturePoint s[numberOfKeypoints];
-    
 
         bool firstRound = true;
 

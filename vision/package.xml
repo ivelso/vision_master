@@ -43,6 +43,7 @@
   <exec_depend>std_msgs</exec_depend>
   <!--   for executable and build and export -->
   <depend>cv_bridge</depend>
+  <depend>move_it</depend>
   <depend>visp_bridge</depend>
   <depend>vision_ros</depend>
   <depend>visp_ros</depend>
