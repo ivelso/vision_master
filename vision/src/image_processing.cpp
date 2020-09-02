@@ -53,6 +53,7 @@ namespace vision
 
     class ImageNode
     {
+    private:
     public:
         ImageNode(void)
         {
@@ -60,7 +61,10 @@ namespace vision
             //img1 = imread("/home/student/catkin_ws/src/vision_master/vision/qr2.png", IMREAD_GRAYSCALE);
             //findFeaturePoints(img1); // find the features to track
             setTargetPoints();
-            ros::AsyncSpinner spinner(1); // make the program use multiple treads.
+            ros::AsyncSpinner spinner(1);
+            vpServo task;
+
+            // make the program use multiple treads.
             spinner.start();
             // changed the rostopic to the simulated.
             //this->subscriber_colour_image = nh.subscribe<sensor_msgs::Image>("camera/rgb/image_raw/", 1, &ImageNode::callback_colour_image, this);
@@ -73,13 +77,13 @@ namespace vision
             message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(rgb_image_sub, depth_image_sub, 10);
             //boost::bind(&ImageNode::callback_images, this,_1, _2);
             sync.registerCallback(boost::bind(&ImageNode::callback_images, this, _1, _2));
-            ros::Rate loop_rate(1);
-            vpServo task;
+            //ros::Rate loop_rate(1);
+
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
             task.setInteractionMatrixType(vpServo::DESIRED, vpServo::PSEUDO_INVERSE);
-              //task.setInteractionMatrixType(vpServo::CURRENT);
+            //task.setInteractionMatrixType(vpServo::CURRENT);
             vpVelocityTwistMatrix cVe;
-             vpMatrix eJe;
+            vpMatrix eJe;
 
             //)
             task.setLambda(0.5);
@@ -132,15 +136,17 @@ namespace vision
                     for (int i = 0; i < joint_group_positions.size(); i++)
                         std::cout << joint_group_positions.at(i) << std::endl;
                     robot.set_eJe(current_joint_group_pos[0]);
-                    double velocity = v[5] * 0.005; 
-                    if (velocity>0.1){
-                        velocity=0.1;
+                    double velocity = v[5] * 0.005;
+                    if (velocity > 0.1)
+                    {
+                        velocity = 0.1;
                     }
-                    if (velocity<-0.1){
-                        velocity=-0.1;
+                    if (velocity < -0.1)
+                    {
+                        velocity = -0.1;
                     }
                     joint_group_positions[0] = current_joint_group_pos[0] + velocity;
-                    move_group.setJointValueTarget( joint_group_positions); // set joint position for the arm
+                    move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
                     setSpeed(v[0], v[5]);                                  // set base speed
                     // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
                     //joint_group_positions[0] = -1.0; // radians
@@ -161,7 +167,7 @@ namespace vision
                 }
                 // ros::waitForShutdown();
                 ros::spinOnce();
-                loop_rate.sleep();
+                //loop_rate.sleep();
                 // ROS_INFO("");
             }
             setSpeed();
@@ -169,6 +175,12 @@ namespace vision
             task.kill();
             spinner.stop();
         }
+        /**
+        ~ImageNode()
+        {
+            task.kill();
+            spinner.stop();
+        }*/
 
         void callback_images(const sensor_msgs::ImageConstPtr &colour_image, const sensor_msgs::ImageConstPtr &depth_image)
         {
@@ -238,7 +250,7 @@ namespace vision
 
         // set the speed of the robot in x and W direction where ohmega is around z axis.
         void setSpeed(float x = 0, float ohmega = 0)
-        { 
+        {
             float MaxVelocity = 0.1;
             if (x > MaxVelocity)
             {
