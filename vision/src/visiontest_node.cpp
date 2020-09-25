@@ -88,6 +88,7 @@ void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &i
     double x = 0, y = 0;
     for (unsigned int i = 0; i < point.size(); i++)
     {
+        
         vpPixelMeterConversion::convertPoint(cam, ip[i], x, y);
         point[i].set_x(x);
         point[i].set_y(y);
@@ -176,6 +177,8 @@ int main(int argc, const char **argv)
         while (!camerainfoRecived)
         {
             camerainfoRecived = g.getCameraInfo(cam);
+            
+
         }
 
         #ifdef VISP_HAVE_X11

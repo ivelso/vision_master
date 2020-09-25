@@ -128,13 +128,16 @@ namespace vision
         void thredTest()
         {
             unsigned int iter = 0;
-            vpPlot plotter(2, 250 * 2, 500, 100, 200, "Real time curves plotter");
+            vpPlot plotter(4, 250 * 4, 1000, 100, 200, "Real time curves plotter");
             plotter.setTitle(0, "Visual features error");
             plotter.setTitle(1, "Camera velocities");
+            plotter.setTitle(2, "Distance to target");
+            plotter.setTitle(3, "Pixel error");
 
             plotter.initGraph(0, 8);
-            plotter.initGraph(1, 6);
-
+            plotter.initGraph(1, 3);
+            plotter.initGraph(2, 1);
+            plotter.initGraph(3, 8);
             plotter.setLegend(0, 0, "x1");
             plotter.setLegend(0, 1, "y1");
             plotter.setLegend(0, 2, "x2");
@@ -145,9 +148,19 @@ namespace vision
             plotter.setLegend(0, 7, "y4");
 
             plotter.setLegend(1, 0, "v_x");
-            plotter.setLegend(1, 1, "v_y");
-            plotter.setLegend(1, 2, "v_z");
-       
+            plotter.setLegend(1, 1, "v_w");
+            plotter.setLegend(1, 2, "v_q1");
+
+            plotter.setLegend(3, 0, "x1");
+            plotter.setLegend(3, 1, "y1");
+            plotter.setLegend(3, 2, "x2");
+            plotter.setLegend(3, 3, "y2");
+            plotter.setLegend(3, 4, "x3");
+            plotter.setLegend(3, 5, "y3");
+            plotter.setLegend(3, 6, "x4");
+            plotter.setLegend(3, 7, "y4");
+
+            plotter.setLegend(2, 0, "z");
 
             vpServo task;
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
@@ -157,7 +170,9 @@ namespace vision
             vpMatrix eJe;
             bool robotDiving = true;
             //)
-            task.setLambda(0.2);
+            // task.setLambda(0.2);
+            vpAdaptiveGain lambda(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+            task.setLambda(lambda);
             task.addFeature(s[0], sd[0]); //, vpFeaturePoint::selectX()  vpFeaturePoint::selectY()
             task.addFeature(s[1], sd[1]);
             //task.addFeature(s_Z, s_Zd);
@@ -210,7 +225,7 @@ namespace vision
             //bool Startcam = true;
             while (ros::ok())
             {
-                if (imageRecived && (ros::Time::now().toSec() - Wait4Image) > 4)
+                if (imageRecived && (ros::Time::now().toSec() - Wait4Image) > 2)
                 {
                     std::cout << ros::Time::now().toSec() - Wait4Image << "time " << std::endl;
                     Wait4Image = ros::Time::now().toSec();
@@ -279,11 +294,25 @@ namespace vision
                         task.print();
 
                         vpColVector v = task.computeControlLaw();
-                        for (int i = 0; i < v.size(); i++)
-                            std::cout << "velocity " << i << ": " << v[i] << std::endl;
+                        //for (int i = 0; i < v.size(); i++)
+                        //  std::cout << "velocity " << i << ": " << v[i] << std::endl;
+                        vpColVector z(1);
+                        z[0] = (s[1].get_Z() / sd[1].get_Z()) - 1;
+                        vpColVector keypointsVector(8);
+
+                        keypointsVector[0] = imageKeypoints[0].pt.x-targetKeypoints[0].pt.x;
+                        keypointsVector[1] = imageKeypoints[0].pt.y-targetKeypoints[0].pt.y;
+                        keypointsVector[2] = imageKeypoints[1].pt.x-targetKeypoints[1].pt.x;
+                        keypointsVector[3] = imageKeypoints[1].pt.y-targetKeypoints[1].pt.y;
+                        keypointsVector[4] = imageKeypoints[2].pt.x-targetKeypoints[2].pt.x;
+                        keypointsVector[5] = imageKeypoints[2].pt.y-targetKeypoints[2].pt.y;
+                        keypointsVector[6] = imageKeypoints[3].pt.x-targetKeypoints[3].pt.x;
+                        keypointsVector[7] = imageKeypoints[3].pt.y-targetKeypoints[3].pt.y;
 
                         plotter.plot(0, iter, task.getError());
                         plotter.plot(1, iter, v);
+                        plotter.plot(2, iter, z);
+                        plotter.plot(3, iter, keypointsVector);
                         iter++;
                         if ((ros::Time::now().toSec() - lastPubTime) > 1)
                         {
@@ -291,7 +320,7 @@ namespace vision
                             lastPubTime = ros::Time::now().toSec();
 
                             float velocity = v[2];
-                            //std::cout << velocity << std::endl;
+                            std::cout << "velocity joint " << velocity << std::endl;
                             float limit = 0.01;
 
                             if (velocity > limit)
@@ -324,7 +353,7 @@ namespace vision
                 }
                 else
                 {
-                    if (robotDiving && (ros::Time::now().toSec() - lastPubTime) > 0.5) // the time between lost image and stop
+                    if (robotDiving && (ros::Time::now().toSec() - lastPubTime) > 0.6) // the time between lost image and stop 0.5 worked fine
 
                     {
                         setSpeed(0, 0);
