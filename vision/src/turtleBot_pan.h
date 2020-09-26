@@ -1,5 +1,8 @@
 /****************************************************************************
- * modified by Sondre. 
+ * modified by Sondre Iveland to work for the Turtlebot3 waffle with openManipulator. 
+ * The camera as the TCP and is mounted on top of the gripper. 
+ * The configuration for the openmanipulator is q1 is q(variable), q2 =-0.1rad, q3 = -0.05rad,  q4 = 0.0rad;  
+ * 
  * ViSP, open source Visual Servoing Platform software.
  * Copyright (C) 2005 - 2019 by Inria. All rights reserved.
  *
@@ -176,7 +179,7 @@ protected:
   {
     // Position of pan head end effector frame in the camera frame
     double cx = -0.032;
-    double cy = -0.241;//-0.065; // distance between camera and tilt axis
+    double cy = -0.241; //-0.065; // distance between camera and tilt axis
     double cz = -0.213;
     vpTranslationVector etc(cx, cy, cz);
     vpRotationMatrix eRc;

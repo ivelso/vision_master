@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <bits/stdc++.h>
 #include <opencv2/opencv.hpp>
@@ -67,100 +66,54 @@ namespace vision
 
     class ImageNode
     {
-    private:
+
     public:
         ImageNode(void)
         {
 
             std::this_thread::sleep_for(std::chrono::seconds(3)); // let the system start up first.
-            ros::AsyncSpinner spinner(2);
+            ros::AsyncSpinner spinner(2);                         // async spinner due to the moveit library
 
-            // make the program use multiple treads.
+            // Make one separate thread for the images. this have a separate queue
             ros::NodeHandle n_a;
-            ros::CallbackQueue callback_queue_a;
-            n_a.setCallbackQueue(&callback_queue_a);
-            //ros::Subscriber sub_a = n_a.subscribe("MessageA", 1, CallbackA);
+            ros::CallbackQueue callback_queue_cam;
+            n_a.setCallbackQueue(&callback_queue_cam);
 
             // changed the rostopic to the simulated.
-            //this->subscriber_colour_image = nh.subscribe<sensor_msgs::Image>("camera/color/image_raw/", 5, &ImageNode::callback_colour_image, this);
-            //this->subscriber_depth = nh.subscribe<sensor_msgs::Image>("camera/aligned_depth_to_color/image_raw/", 5, &ImageNode::callback_depth, this);
-            message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(n_a, "camera/color/image_raw/", 1); //changed the cue to 3 from 1 //camera/color/image_raw/
+            // this->subscriber_colour_image = nh.subscribe<sensor_msgs::Image>("camera/color/image_raw/", 5, &ImageNode::callback_colour_image, this);
+            // this->subscriber_depth = nh.subscribe<sensor_msgs::Image>("camera/aligned_depth_to_color/image_raw/", 5, &ImageNode::callback_depth, this);
+            message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(n_a, "camera/color/image_raw/", 1);
             message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(n_a, "camera/aligned_depth_to_color/image_raw/", 1);
             // http://library.isr.ist.utl.pt/docs/roswiki/message_filters.html
-            //message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/rgb/image_raw/", 1);//CompressedImage
-            //message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(nh, "camera/depth/image_raw/", 1);
+            // message_filters::Subscriber<sensor_msgs::Image> rgb_image_sub(nh, "camera/rgb/image_raw/", 1);//CompressedImage
+            // message_filters::Subscriber<sensor_msgs::Image> depth_image_sub(nh, "camera/depth/image_raw/", 1);
+            // ensure that the image is with same time stamp.
             message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(rgb_image_sub, depth_image_sub, 10);
             boost::bind(&ImageNode::callback_images, this, _1, _2);
             sync.registerCallback(boost::bind(&ImageNode::callback_images, this, _1, _2));
             this->publisher_state = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
 
-            std::thread spinner_thread_a([&callback_queue_a]() {
+            std::thread spinner_thread_a([&callback_queue_cam]() {
                 ros::SingleThreadedSpinner spinner_a;
-                spinner_a.spin(&callback_queue_a);
+                spinner_a.spin(&callback_queue_cam);
             });
-            //ros::Rate loop_rate(10);
-            //std::cout << "print" << std::endl;
-            std::thread testthread(&ImageNode::thredTest, this);
+
+            std::thread testthread(&ImageNode::loop, this);
 
             spinner.start();
-            //ros::spin();
+            // kill the threads.
             ros::waitForShutdown();
             spinner_thread_a.join();
             testthread.join();
-            //std::cout << "print" << std::endl;
-
-            //loop_rate.sleep();
-            // setSpeed();
-
-            //task.kill();
             spinner.stop();
         }
+
         /**
-        ~ImageNode()
+        * The loop of the control. 
+        * 
+        **/
+        void loop()
         {
-            task.kill();
-            spinner.stop();
-        }*/
-        void ploter()
-        {
-        }
-
-        void thredTest()
-        {
-            unsigned int iter = 0;
-            vpPlot plotter(4, 250 * 4, 1000, 100, 200, "Real time curves plotter");
-            plotter.setTitle(0, "Visual features error");
-            plotter.setTitle(1, "Camera velocities");
-            plotter.setTitle(2, "Distance to target");
-            plotter.setTitle(3, "Pixel error");
-
-            plotter.initGraph(0, 8);
-            plotter.initGraph(1, 3);
-            plotter.initGraph(2, 1);
-            plotter.initGraph(3, 8);
-            plotter.setLegend(0, 0, "x1");
-            plotter.setLegend(0, 1, "y1");
-            plotter.setLegend(0, 2, "x2");
-            plotter.setLegend(0, 3, "y2");
-            plotter.setLegend(0, 4, "x3");
-            plotter.setLegend(0, 5, "y3");
-            plotter.setLegend(0, 6, "x4");
-            plotter.setLegend(0, 7, "y4");
-
-            plotter.setLegend(1, 0, "v_x");
-            plotter.setLegend(1, 1, "v_w");
-            plotter.setLegend(1, 2, "v_q1");
-
-            plotter.setLegend(3, 0, "x1");
-            plotter.setLegend(3, 1, "y1");
-            plotter.setLegend(3, 2, "x2");
-            plotter.setLegend(3, 3, "y2");
-            plotter.setLegend(3, 4, "x3");
-            plotter.setLegend(3, 5, "y3");
-            plotter.setLegend(3, 6, "x4");
-            plotter.setLegend(3, 7, "y4");
-
-            plotter.setLegend(2, 0, "z");
 
             vpServo task;
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
@@ -168,27 +121,26 @@ namespace vision
             //task.setInteractionMatrixType(vpServo::CURRENT);
             vpVelocityTwistMatrix cVe;
             vpMatrix eJe;
+            //flag to make the robot stop, because the control is discrete
             bool robotDiving = true;
-            //)
+
             // task.setLambda(0.2);
             vpAdaptiveGain lambda(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
             task.setLambda(lambda);
+            //add the features to the control
             task.addFeature(s[0], sd[0]); //, vpFeaturePoint::selectX()  vpFeaturePoint::selectY()
             task.addFeature(s[1], sd[1]);
             //task.addFeature(s_Z, s_Zd);
-
             task.addFeature(s[2], sd[2]);
             task.addFeature(s[3], sd[3]);
             vpTurtlebotPan robot;
             vpCameraParameters cam;
             // vpMatrix k()
             cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 337.3551940917969, 238.88201904296875); //617.0617065429688, 616.9425659179688
-            //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0]
-            //)
-
+            //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0])
             setTargetPoints(cam);
-            //moving
 
+            //initiate the robot arm
             static const std::string PLANNING_GROUP = "arm";
             moveit::planning_interface::MoveGroupInterface move_group(PLANNING_GROUP); //PLANNING_GROUP
             const robot_state::JointModelGroup *joint_model_group =
@@ -200,8 +152,7 @@ namespace vision
             robot.set_eJe(joint_group_positions[0]);
 
             // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
-            joint_group_positions[0] = 0.0; // radians
-
+            joint_group_positions[0] = 0.0;   // radians
             joint_group_positions[1] = -0.1;  // radians
             joint_group_positions[2] = -0.05; // radians
             joint_group_positions[3] = 0.0;   // radians
@@ -212,19 +163,14 @@ namespace vision
 
             move_group.move();
             // make the robot go to start position.
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(3000));
             // finished moving
             uint64_t lastPubTime = ros::Time::now().toSec();
             uint64_t Wait4Image = ros::Time::now().toSec();
-            //vpImage<unsigned char> I;
-            // vpImageConvert::convert(currentImg, I);
-            // if (Startcam)
-            //{
-            //std::cout << "HERE" << std::endl;
-            //vpDisplayX d(I, 10, 10, "Current frame");
-            //bool Startcam = true;
+            // the loop as loong as ros is not in shut down.
             while (ros::ok())
             {
+                // check that image is recived and that there is more than 2 sec since the robot moved. This is because of the lag in the image stream.
                 if (imageRecived && (ros::Time::now().toSec() - Wait4Image) > 2)
                 {
                     std::cout << ros::Time::now().toSec() - Wait4Image << "time " << std::endl;
@@ -232,13 +178,10 @@ namespace vision
                     imageRecived = false;
                     cv::Mat newImg = currentImg;
                     cv::Mat depthframe = currentDepth;
-                    FindBloobs(newImg);
-
-                    //ROS_INFO("callback_depth()");
-
+                    FindBloobs(newImg); //change to make a different detection method
+                    // ensure that all feature is found in the image.
                     if (imageKeypoints.size() >= numberOfKeypoints)
                     {
-                        // Get image message as an OpenCV Mat object (most functions you use for image processing will want this)
 
                         // find the depth to each feature.
                         for (int i = 0; i < numberOfKeypoints; i++)
@@ -258,26 +201,14 @@ namespace vision
                                 s[i].set_Z(0.15);
                             }
                             firstRound = false;
-                            // s[i].print();
                         }
 
                         s_Z.buildFrom(s[1].get_x(), s[1].get_y(), s[1].get_Z(), log(s[1].get_Z() / s_Zd.get_Z()));
+                        // print the error in the image in cartesian coordinate.
                         std::cout << s[0].get_x() << " " << s[1].get_x() << " " << s[2].get_x() << " " << s[3].get_x() << std::endl;
                         std::cout << s[0].get_y() << " " << s[1].get_y() << " " << s[2].get_y() << " " << s[3].get_y() << std::endl;
                     }
-                    /***
-                    vpImageConvert::convert(newImg, I);
-                    vpDisplay::display(I);
-                    vpDisplay::flush(I);
 
-                    Startcam = false;
-                    // }
-
-                    //s_Z.display(cam, I, vpColor::green, 40);
-
-                    vpDisplay::flush(I);
-*/
-                    // ROS_I
                     if (!firstRound && !missingKeypoint)
                     {
                         current_state = move_group.getCurrentState();
@@ -296,24 +227,7 @@ namespace vision
                         vpColVector v = task.computeControlLaw();
                         //for (int i = 0; i < v.size(); i++)
                         //  std::cout << "velocity " << i << ": " << v[i] << std::endl;
-                        vpColVector z(1);
-                        z[0] = (s[1].get_Z() / sd[1].get_Z()) - 1;
-                        vpColVector keypointsVector(8);
-
-                        keypointsVector[0] = imageKeypoints[0].pt.x-targetKeypoints[0].pt.x;
-                        keypointsVector[1] = imageKeypoints[0].pt.y-targetKeypoints[0].pt.y;
-                        keypointsVector[2] = imageKeypoints[1].pt.x-targetKeypoints[1].pt.x;
-                        keypointsVector[3] = imageKeypoints[1].pt.y-targetKeypoints[1].pt.y;
-                        keypointsVector[4] = imageKeypoints[2].pt.x-targetKeypoints[2].pt.x;
-                        keypointsVector[5] = imageKeypoints[2].pt.y-targetKeypoints[2].pt.y;
-                        keypointsVector[6] = imageKeypoints[3].pt.x-targetKeypoints[3].pt.x;
-                        keypointsVector[7] = imageKeypoints[3].pt.y-targetKeypoints[3].pt.y;
-
-                        plotter.plot(0, iter, task.getError());
-                        plotter.plot(1, iter, v);
-                        plotter.plot(2, iter, z);
-                        plotter.plot(3, iter, keypointsVector);
-                        iter++;
+                        ploter(v, task.getError());
                         if ((ros::Time::now().toSec() - lastPubTime) > 1)
                         {
                             //std::cout << "time " << ros::Time::now().toSec() - lastPubTime << std::endl;
@@ -369,15 +283,79 @@ namespace vision
                 }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                // ros::waitForShutdown();
-                //ros::spinOnce();
-                //loop_rate.sleep();
-                // ROS_INFO("");
-                //loop_rate.sleep();
             }
             task.kill();
         }
 
+        /**
+         * function that plots the variables to a plot. plots the keypoints in pixel coord, in xy coord error in z distance and the velocity for the joints. 
+         * 
+         * */
+        void ploter(const vpColVector &v, const vpColVector &error)
+        {
+            static bool initiate = true;
+            static vpPlot plotter;
+            static unsigned int iter = 0;
+            if (initiate)
+            {
+                initiate = false;
+                plotter.init(4, 250 * 4, 1500, 100, 200, "Real time curves plotter");
+                plotter.setTitle(0, "Visual features error");
+                plotter.setTitle(1, "Camera velocities");
+                plotter.setTitle(2, "Distance to target");
+                plotter.setTitle(3, "Pixel error");
+
+                plotter.initGraph(0, 8);
+                plotter.initGraph(1, 3);
+                plotter.initGraph(2, 1);
+                plotter.initGraph(3, 8);
+                plotter.setLegend(0, 0, "x1");
+                plotter.setLegend(0, 1, "y1");
+                plotter.setLegend(0, 2, "x2");
+                plotter.setLegend(0, 3, "y2");
+                plotter.setLegend(0, 4, "x3");
+                plotter.setLegend(0, 5, "y3");
+                plotter.setLegend(0, 6, "x4");
+                plotter.setLegend(0, 7, "y4");
+
+                plotter.setLegend(1, 0, "v_x");
+                plotter.setLegend(1, 1, "v_w");
+                plotter.setLegend(1, 2, "v_q1");
+
+                plotter.setLegend(3, 0, "x1");
+                plotter.setLegend(3, 1, "y1");
+                plotter.setLegend(3, 2, "x2");
+                plotter.setLegend(3, 3, "y2");
+                plotter.setLegend(3, 4, "x3");
+                plotter.setLegend(3, 5, "y3");
+                plotter.setLegend(3, 6, "x4");
+                plotter.setLegend(3, 7, "y4");
+
+                plotter.setLegend(2, 0, "z");
+            }
+            vpColVector z(1);
+            z[0] = (s[1].get_Z() / sd[1].get_Z()) - 1;
+            vpColVector keypointsVector(8);
+            // find the error for the keypoints
+            keypointsVector[0] = imageKeypoints[0].pt.x - targetKeypoints[0].pt.x;
+            keypointsVector[1] = imageKeypoints[0].pt.y - targetKeypoints[0].pt.y;
+            keypointsVector[2] = imageKeypoints[1].pt.x - targetKeypoints[1].pt.x;
+            keypointsVector[3] = imageKeypoints[1].pt.y - targetKeypoints[1].pt.y;
+            keypointsVector[4] = imageKeypoints[2].pt.x - targetKeypoints[2].pt.x;
+            keypointsVector[5] = imageKeypoints[2].pt.y - targetKeypoints[2].pt.y;
+            keypointsVector[6] = imageKeypoints[3].pt.x - targetKeypoints[3].pt.x;
+            keypointsVector[7] = imageKeypoints[3].pt.y - targetKeypoints[3].pt.y;
+
+            plotter.plot(0, iter, error);
+            plotter.plot(1, iter, v);
+            plotter.plot(2, iter, z);
+            plotter.plot(3, iter, keypointsVector);
+            iter++;
+        }
+
+        /**
+        * Callback for the depth and rgb image. Stores the images. 
+        **/
         void callback_images(const sensor_msgs::ImageConstPtr &colour_image, const sensor_msgs::ImageConstPtr &depth_image)
         {
             //ROS_INFO("got image");
@@ -392,51 +370,6 @@ namespace vision
             //std::cout<<"printing the image "<<std::endl;
             //cv::imshow("keypoints", frame);
             // waitKey(2);
-        }
-        //example
-        void callback_colour_image(sensor_msgs::ImageConstPtr const &colour_image)
-        {
-            std::cout << "colour" << std::endl;
-            // Get image message as an OpenCV Mat object (most functions you use for image processing will want this)
-            cv::Mat frame = cv_bridge::toCvShare(colour_image, sensor_msgs::image_encodings::BGR8)->image;
-
-            cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
-            FindBloobs(frame);
-            //cv::imshow("cv_img", frame);
-
-            //findFeaturePoints(frame);
-        }
-        // example
-        void callback_depth(sensor_msgs::ImageConstPtr const &depth_image)
-        {
-            std::cout << "depth" << std::endl;
-
-            if (imageKeypoints.size() >= numberOfKeypoints)
-            {
-                // Get image message as an OpenCV Mat object (most functions you use for image processing will want this)
-                cv::Mat depthframe = cv_bridge::toCvCopy(depth_image, sensor_msgs::image_encodings::TYPE_16UC1)->image; // Note encoding
-
-                // find the depth to each feature.
-                for (int i = 0; i < numberOfKeypoints; i++)
-                {
-                    double centre_depth = DEPTH_SCALE * static_cast<double>(depthframe.at<uint16_t>(imageKeypoints[i].pt));
-                    //ROS_INFO("centre depth: %.4f", centre_depth);
-                    if (centre_depth > 0)
-                    {
-                        s[i].buildFrom(imageKeypoints[i].pt.x, imageKeypoints[i].pt.y, centre_depth);
-                    }
-                    else
-                    {
-                        s[i].buildFrom(imageKeypoints[i].pt.x, imageKeypoints[i].pt.y, 0.30);
-                    }
-                    firstRound = false;
-                    // s[i].print();
-                }
-                // ROS_INFO("thats the keypoints ");
-            }
-
-            //cv::imshow ("cv_depth", frame);
-            //cv::waitKey(2);
         }
 
         // set the speed of the robot in x and W direction where ohmega is around z axis.
@@ -471,30 +404,18 @@ namespace vision
             this->publisher_state.publish(movemsg);
         }
 
-        void getObjectPosFromCam()
-        {
-        }
-
         /**
          * set the target position for the features.
         */
         void setTargetPoints(vpCameraParameters &cam)
         {
-            //150,150
-            //150,300
-            //set up the target
-            //numberOfKeypoints = 4;
-            // used to se the setpoint.
+
+            // set point in pixel coord this is also showed in the image
             targetKeypoints.push_back(cv::KeyPoint(317.6557007, 177.0446625, 40));
             targetKeypoints.push_back(cv::KeyPoint(391.3921814, 171.9816589, 40));
             targetKeypoints.push_back(cv::KeyPoint(323.1187439, 250.4288635, 40));
             targetKeypoints.push_back(cv::KeyPoint(396.3076172, 245.7163239, 40));
 
-            //sd[0].buildFrom(-0.739179633, 0.2233497717, 0.245);
-            //sd[1].buildFrom(0, 0, 0.189);
-            //sd[1].buildFrom(377.1056213, 108.6539154, 0.189);
-            //sd[2].buildFrom(288, 264, 0.200);
-            // sd[3].buildFrom(397, 255, 0.200);
             vpImagePoint point(targetKeypoints[0].pt.x, targetKeypoints[0].pt.y);
             vpFeatureBuilder::create(sd[0], cam, point);
             sd[0].set_Z(0.251);
@@ -538,7 +459,7 @@ namespace vision
             // Filter by Area.
             params.filterByArea = true;
             params.minArea = 20;
-            params.maxArea = 3.14159 * 200.0f * 200.0f;
+            params.maxArea = 3.14159 * 250.0f * 250.0f; // calculate the area of circle
 
             std::vector<KeyPoint> keyPoints;
             std::vector<KeyPoint> GoodkeyPoints;
@@ -605,15 +526,13 @@ namespace vision
                     sortedKeypoints[3] = GoodkeyPoints[i];
                 }
             }
-
+            //remove the old keypoints
             imageKeypoints.clear();
             for (int i = 0; i < numberOfKeypoints; i++)
             {
                 imageKeypoints.push_back(sortedKeypoints[i]);
             }
-            //imageKeypoints(std::begin(sortedKeypoints), std::end(sortedKeypoints));
 
-            //sort(imageKeypoints.begin(), imageKeypoints.end());
             if (missingKeypoint || debug)
             {
                 cv::Mat keypointsMat;
@@ -624,124 +543,42 @@ namespace vision
             }
         }
 
+        /**
+        * get the target points in a opencv keypoint vector. 
+        **/
         void getTargetPoint(std::vector<KeyPoint> &keypoints)
         {
 
             keypoints = targetKeypoints;
         }
 
-        /**
-         * surf keypoints. find keypoints in the image
-         **/
-        void findFeaturePoints(cv::Mat &frame)
-        {
-            int minHessian = 400;
-            Ptr<SURF> detector = SURF::create(minHessian);
-
-            std::vector<KeyPoint> keypoints;
-            cv::Mat descriptor;
-            detector->detectAndCompute(frame, noArray(), keypoints, descriptor);
-
-            if (firstRound == true)
-            {
-                targetKeypoints = keypoints;
-                targetDescriptor = descriptor;
-                targetFrame = frame;
-                firstRound = false;
-            }
-            else
-            {
-
-                //Ptr<DescriptorMatcher> matcher = BFMatcher::create();
-                //std::vector<DMatch> matches;
-                //matcher -> knnMatch(descriptor, targetDescriptor, matches,10);
-                //printf("image1:%zd keypoints are found.\n", matches.size();
-
-                Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-                std::vector<std::vector<DMatch>> knn_matches;
-
-                if (targetDescriptor.empty() != true && descriptor.empty() != true)
-                {
-                    //cvError(0, "MatchFinder", "1st descriptor empty", __FILE__, __LINE__);
-                    //if (descriptor.empty())
-                    ///  cvError(0, "MatchFinder", "2nd descriptor empty", __FILE__, __LINE__);
-                    matcher->knnMatch(targetDescriptor, descriptor, knn_matches, 2);
-
-                    //-- Filter matches using the Lowe's ratio test
-                    const float ratio_thresh = 0.7f;
-                    std::vector<DMatch> good_matches;
-
-                    for (size_t i = 0; i < knn_matches.size(); i++)
-                    {
-                        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
-                        {
-                            good_matches.push_back(knn_matches[i][0]);
-                        }
-                    }
-
-                    if (good_matches.size() > 0)
-                    {
-                        //-- Draw matches
-                        Mat img_matches;
-                        drawMatches(targetFrame, targetKeypoints, frame, keypoints, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-                        //-- Show detected matches
-
-                        imshow("Good Matches", img_matches);
-                    }
-                }
-                else
-                {
-                    ROS_INFO("missing descriptors from the image stream ");
-                }
-
-                cv::waitKey(2);
-            }
-        }
-
     private:
-        ros::Subscriber subscriber_colour_image, subscriber_depth;
+        //ros::Subscriber subscriber_colour_image, subscriber_depth;
         ros::NodeHandle nh;
         ros::Publisher publisher_state;
         std::vector<KeyPoint> targetKeypoints, imageKeypoints;
-        cv::Mat targetDescriptor;
-        cv::Mat targetFrame;
         cv::Mat currentImg, currentDepth;
-        bool missingKeypoint = true;
+
         static constexpr double DEPTH_SCALE = 0.001;
         static const int numberOfKeypoints = 4;
+        //features for the control 
         vpFeaturePoint sd[numberOfKeypoints];
         vpFeaturePoint s[numberOfKeypoints];
         vpFeatureDepth s_Z, s_Zd;
+        //variables for the running
         bool imageRecived = false;
-
         bool firstRound = true;
         bool debug = true;
-
-        // Function for calculating median
-        double findMedian(int a[], int n)
-        {
-            // First we sort the array
-            std::sort(a, a + n);
-
-            // check for even case
-            if (n % 2 != 0)
-                return (double)a[n / 2];
-
-            return (double)(a[(n - 1) / 2] + a[n / 2]) / 2.0;
-        }
+        bool missingKeypoint = true;
     };
 } // namespace vision
 
 int main(int argc, char **argv)
 {
-    ROS_INFO("Starting ROS image processing node ");
+    ROS_INFO("Starting ROS image processing node");
     ros::init(argc, argv, "image_processing");
     vision::ImageNode visionNode;
-    ROS_INFO("ros spin ");
-    // ros::spin();
-    ROS_INFO("Shutting down ROS Beacon Detector module");
-    //visionNode.setTargetPoints();
-    //ImageNode::setTargetPoints();
+
     return 0;
 }
 
