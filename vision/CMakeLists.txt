@@ -46,7 +46,8 @@ endmacro()
 
 
 build_node(visiontest_node)
-build_node(image_processing)
+
+build_node(main_control)
 
 
 
