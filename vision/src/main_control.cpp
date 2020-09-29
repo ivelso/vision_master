@@ -5,6 +5,11 @@
 #include <iostream>
 #include <thread>
 #include <visp/vpColVector.h>
+/**
+ * This main is resposible for controlling a robot using image based visual servoing. 
+ * 
+ *  Author: Sondre Iveland 
+ * */
 int main(int argc, char **argv)
 {
     ROS_INFO("Starting ROS main control node");
@@ -64,10 +69,7 @@ int main(int argc, char **argv)
     robotController.setVelocityBase(0, 0);
     spinner_thread_a.join();
     spinner.stop();
-    // get image features s,sd.
-    //calculate the control, return v, given s,sd
-    //control the robot v
-    //based on th error chose control.
+
 
     return 0;
 }

@@ -38,9 +38,14 @@
 //#include <visp/vpFeaturePoint.h>
 /**
  *This class is responsible for finding the feature points in the image.
+ *given image stream on a topic the code finds the features using opencv and then converts the features in to VISP featurepoint. 
+ *These can then be used in a control system 
+ *The image stream is running in a separate thread where both rgb and depth image needs the same time stamp in order for it to be used. 
+*
  *
  *  pages used as examples for the code
  * https://docs.opencv.org/3.4/d5/d6f/tutorial_feature_flann_matcher.html
+ * Author: Sondre Iveland 
  **/
 
 using namespace cv;
@@ -56,10 +61,8 @@ namespace vision
         uint64_t lastPubTime;
         uint64_t Wait4Image;
         bool newFeatures = false;
-        //static ros::SingleThreadedSpinner spinner_a;
-        //static std::thread spinner_thread_a;
+
         ros::NodeHandle n_a;
-        //static ros::CallbackQueue *callback_queue_cam;
 
     public:
         ImageNode()
@@ -69,30 +72,10 @@ namespace vision
             cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 337.3551940917969, 238.88201904296875); //617.0617065429688, 616.9425659179688
             //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0])
             setTargetPoints(cam);
-
-            //std::this_thread::sleep_for(std::chrono::seconds(3)); // let the system start up first.
-            // ros::AsyncSpinner spinner(1); // async spinner due to the moveit library
-
-            // Make one separate thread for the images. this have a separate queue
-
-            // spinner.start();
-            // std::thread testthread(&ImageNode::loop, this);
-            // testthread.join();
-            // kill the threads.
-            // ros::waitForShutdown();
-
-            //spinner.stop();
         }
 
         ~ImageNode()
         {
-            // testthread.join();
-            // kill the threads.
-            //ros::waitForShutdown();
-
-            //spinner_thread_a.join();
-
-            // spinner.stop();
         }
         void initiate()
         {
@@ -121,6 +104,9 @@ namespace vision
             ros::waitForShutdown();
             spinner_thread_a.join();
         }
+        /***
+         * this function checks if a new image is recived and performs the feature finding.  
+         * */
         void loop()
         {
 
@@ -165,6 +151,9 @@ namespace vision
             }
         }
 
+        /**
+ * get the desired features.  
+ * **/
         void getsd(vpFeaturePoint *_sd)
         {
 
@@ -173,6 +162,10 @@ namespace vision
             _sd[2] = sd[2];
             _sd[3] = sd[3];
         }
+        /**
+         * get the current features. 
+         * return: true if there is new features. else false. 
+         * */
         bool gets(vpFeaturePoint *_s)
         {
             if (newFeatures)
@@ -202,16 +195,16 @@ namespace vision
             if (initiate)
             {
                 initiate = false;
-                plotter.init(4, 250 * 4, 1500, 100, 200, "Real time curves plotter");
+                plotter.init(3, 250 * 4, 1500, 100, 200, "Real time curves plotter");
                 plotter.setTitle(0, "Visual features error");
-                plotter.setTitle(1, "Camera velocities");
+
                 plotter.setTitle(2, "Distance to target");
-                plotter.setTitle(3, "Pixel error");
+                plotter.setTitle(1, "Pixel error");
 
                 plotter.initGraph(0, 8);
-                plotter.initGraph(1, 3);
+                plotter.initGraph(1, 8);
                 plotter.initGraph(2, 1);
-                plotter.initGraph(3, 8);
+
                 plotter.setLegend(0, 0, "x1");
                 plotter.setLegend(0, 1, "y1");
                 plotter.setLegend(0, 2, "x2");
@@ -221,18 +214,14 @@ namespace vision
                 plotter.setLegend(0, 6, "x4");
                 plotter.setLegend(0, 7, "y4");
 
-                plotter.setLegend(1, 0, "v_x");
-                plotter.setLegend(1, 1, "v_w");
-                plotter.setLegend(1, 2, "v_q1");
-
-                plotter.setLegend(3, 0, "x1");
-                plotter.setLegend(3, 1, "y1");
-                plotter.setLegend(3, 2, "x2");
-                plotter.setLegend(3, 3, "y2");
-                plotter.setLegend(3, 4, "x3");
-                plotter.setLegend(3, 5, "y3");
-                plotter.setLegend(3, 6, "x4");
-                plotter.setLegend(3, 7, "y4");
+                plotter.setLegend(1, 0, "x1");
+                plotter.setLegend(1, 1, "y1");
+                plotter.setLegend(1, 2, "x2");
+                plotter.setLegend(1, 3, "y2");
+                plotter.setLegend(1, 4, "x3");
+                plotter.setLegend(1, 5, "y3");
+                plotter.setLegend(1, 6, "x4");
+                plotter.setLegend(1, 7, "y4");
 
                 plotter.setLegend(2, 0, "z");
             }
@@ -250,9 +239,9 @@ namespace vision
             keypointsVector[7] = imageKeypoints[3].pt.y - targetKeypoints[3].pt.y;
 
             plotter.plot(0, iter, error);
-            plotter.plot(1, iter, v);
+            plotter.plot(1, iter, keypointsVector);
             plotter.plot(2, iter, z);
-            plotter.plot(3, iter, keypointsVector);
+
             iter++;
         }
 

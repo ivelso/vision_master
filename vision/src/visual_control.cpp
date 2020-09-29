@@ -32,7 +32,12 @@
 #include <visp3/gui/vpPlot.h>
 
 #include "turtleBot_pan.h"
-
+/**
+ * This class is responsible for the control given the featurepoints the desired velocites for the robot is calculated. 
+ * the class just calculates the velocities and does not perform the comunication. 
+ * 
+ *  Author: Sondre Iveland 
+ * */
 namespace vision
 {
 
@@ -63,6 +68,11 @@ namespace vision
         bool firstRound = true;
 
     public:
+    /**
+     * set the features for the control given in a array of 4 features. 
+     * This is only performed once because the address is used so the features will be updated. 
+     * 
+     * */
         void setFeatures(vpFeaturePoint *s, vpFeaturePoint *sd)
         {
 
@@ -138,33 +148,8 @@ namespace vision
             // }
             return v;
 
-            // set base speed
-            // Now, let's -0.8657208144modify one of the joints, plan to the new joint space goal and visualize the plan.
-            //joint_group_positions[0] = -1.0; // radians
-            //move_group.setJointValueTarget(joint_group_positions);
-
-            //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-            // else
-            // {
-            //    if (robotDiving && (ros::Time::now().toSec() - lastPubTime) > 0.6) // the time between lost image and stop 0.5 worked fine
-
-            //    {
-            //       setSpeed(0, 0);
-            //       robotDiving = false;
-            //       imageRecived = false;
-            //   }
-            //loop_rate.sleep();
-            //current_state = move_group.getCurrentState();
-            //current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
-            //move_group.setJointValueTarget(joint_group_positions);
-            //move_group.move();
-            //move_group.stop();
-            //  }
-
-            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         //task.kill();
 
-    }; // namespace vision
+    }; 
 } // namespace vision

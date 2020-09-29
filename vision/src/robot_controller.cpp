@@ -12,6 +12,12 @@
 #include <moveit_msgs/CollisionObject.h>
 
 #include <moveit_visual_tools/moveit_visual_tools.h>
+
+/**
+ * This class is responsible for the control of the robot. 
+ * It contains all the comunication with the robot for both the arm and the base 
+ *  Author: Sondre Iveland 
+ * */
 namespace vision
 {
 
