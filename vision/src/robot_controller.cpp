@@ -1,6 +1,12 @@
 #include <vector>
 #include <string>
-
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Pose.h>
+#include "geometry_msgs/Point.h"
+#include "geometry_msgs/Quaternion.h"
 // moveit
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
@@ -29,6 +35,8 @@ namespace vision
         ros::NodeHandle nh;
         ros::Publisher publisher_state;
         const robot_state::JointModelGroup *joint_model_group;
+        geometry_msgs::PoseStamped newPose;
+        bool jointsMoved;
 
     public:
         RobotController(ros::NodeHandle *nodehandle) : nh(*nodehandle) //ros::NodeHandle nh
@@ -52,6 +60,10 @@ namespace vision
             joint_model_group =
                 move_group->getCurrentState()->getJointModelGroup(PLANNING_GROUP); //PLANNING_GROUP
             ROS_INFO("Robot controller running ");
+            setStartPos();
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            newPose = move_group->getCurrentPose();
+            jointsMoved = false;
             //moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
 
             //current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
@@ -79,19 +91,20 @@ namespace vision
         }
         void setStartPos()
         {
-        
+
             std::vector<double> joint_group_positions;
             // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
             joint_group_positions.push_back(0.0);   // radians
             joint_group_positions.push_back(-0.1);  // radians
             joint_group_positions.push_back(-0.05); // radians
             joint_group_positions.push_back(0.0);   // radians
-            
-            (*move_group).setJointValueTarget(joint_group_positions);
+
+            move_group->setJointValueTarget(joint_group_positions);
 
             //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-          
+
             move_group->move();
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
         void setPositonJoints(float q1, float q2, float q3, float q4)
@@ -105,8 +118,9 @@ namespace vision
             move_group->setJointValueTarget(joint_group_positions);
 
             //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-            move_group->move();
+            move_group->asyncMove();
+            jointsMoved = true;
+            //  move_group->move();
         }
         void setPositonJoints(float q1)
         {
@@ -116,18 +130,46 @@ namespace vision
             joint_group_positions.push_back(-0.1);  // radians
             joint_group_positions.push_back(-0.05); // radians
             joint_group_positions.push_back(0.0);   // radians
-           
-            (*move_group).setJointValueTarget(joint_group_positions);
+
+            move_group->setJointValueTarget(joint_group_positions);
             ROS_INFO("robot control: setting joint q1");
 
             //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+            move_group->asyncMove();
+            jointsMoved = true;
+            //  (*move_group).move();
+        }
+        void moveXYZcoord(double x, double y, double z)
+        {
+            if (jointsMoved)
+            {
+                newPose = move_group->getCurrentPose();
+                jointsMoved = false;
+            }
+            // geometry_msgs::PoseStamped curPose = move_group->getCurrentPose();
+            // std::cout << "x:" << curPose.pose.position.x << std::endl;
+            // std::cout << curPose.pose.position.y << std::endl;
+            // std::cout << curPose.pose.position.z << std::endl;
 
-            (*move_group).move();
+            //c::Point newPoint;
+            // geometry_msgs::Quaternion newQuert;
+            //newPoint.x;
+            //newQuert.x;
+            newPose.pose.position.x = newPose.pose.position.x + x;
+            newPose.pose.position.y = newPose.pose.position.y + y;
+            newPose.pose.position.z = newPose.pose.position.z + z;
+            //(*move_group).setPoseTarget(newPose);
+            //success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+            (*move_group).setPositionTarget(newPose.pose.position.x, newPose.pose.position.y, newPose.pose.position.z);
+            move_group->asyncMove();
+            ROS_INFO("robot control: move to x= %.4f y= %.4f , z= %.4f", newPose.pose.position.x, newPose.pose.position.y, newPose.pose.position.z);
+            //(*move_group).move();
         }
 
         // set the speed of the robot in x and W direction where ohmega is around z axis.
         void setVelocityBase(float x = 0, float ohmega = 0)
         {
+
             float MaxVelocity = 0.2;
             if (x > MaxVelocity)
             {
@@ -152,9 +194,12 @@ namespace vision
             geometry_msgs::Twist movemsg;
             movemsg.linear = linMove;
             movemsg.angular = rotMove;
+
             ROS_INFO("robot control: setting wheel speed x= %.4f ohmega= %.4f", x, ohmega);
             // publish to the topic given in the initiation function.
+      
             this->publisher_state.publish(movemsg);
+     
         }
     };
 } // namespace vision

@@ -46,29 +46,20 @@ namespace vision
     public:
         VisualControl()
         {
+            task.setServo(vpServo::EYEINHAND_CAMERA);
+            identityMatcVe = task.get_cVe();
+            identityMateJe = task.get_eJe();
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
             task.setInteractionMatrixType(vpServo::MEAN, vpServo::PSEUDO_INVERSE);
             lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
             task.setLambda(lambda);
-
-            //std::thread testthread(&VisualControl::loop, this);
-            // testthread.join();
         }
         ~VisualControl()
         {
-            //task.kill();
+            task.kill();
         }
 
-    private:
-        vpAdaptiveGain lambda;
-        vpServo task;
-        vpVelocityTwistMatrix cVe;
-        vpMatrix eJe;
-        vpTurtlebotPan robot;
-        bool firstRound = true;
-
-    public:
-    /**
+        /**
      * set the features for the control given in a array of 4 features. 
      * This is only performed once because the address is used so the features will be updated. 
      * 
@@ -83,73 +74,115 @@ namespace vision
             task.addFeature(s[2], sd[2]);
             task.addFeature(s[3], sd[3]);
         }
+        void setTaskMode(int mode)
+        {
+            if (mode == 1)
+            {
+                task.setServo(vpServo::EYEINHAND_CAMERA);
+                task.set_cVe(identityMatcVe);
+                task.set_eJe(identityMateJe);
+                lambda.initStandard(0.5, 0.05, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+                task.setLambda(lambda);
+                cameraVelocity = true;
+            }
+            if (mode == 0)
+            {
+                task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
+                lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+                task.setLambda(lambda);
+                cameraVelocity = false;
+            }
+            //task.setInteractionMatrixType(vpServo::CURRENT);
+        }
         /**
         * The loop of the control. 
         **/
         vpColVector loop(std::vector<double> &joint_group_pos)
         {
 
-            //task.setInteractionMatrixType(vpServo::CURRENT);
-
-            //flag to make the robot stop, because the control is discrete
-            //bool robotDiving = true;
-
-            // task.setLambda(0.2);
-
-            // vpMatrix k()
-
-            //std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-            // finished moving
-
             // the loop as loong as ros is not in shut down.
-            robot.set_eJe(joint_group_pos[0]);
-            cVe = robot.get_cVe();
-            task.set_cVe(cVe);
-            eJe = robot.get_eJe();
-            task.set_eJe(eJe);
-            //std::cout << eJe << std::endl;
+            if (!cameraVelocity)
+            {
+                robot.set_eJe(joint_group_pos[0]);
+                cVe = robot.get_cVe();
+                task.set_cVe(cVe);
+                eJe = robot.get_eJe();
+                task.set_eJe(eJe);
+            }
+
+            //std::cout << task.get_eJe() << std::endl;
             //std::cout << "cVe " << std::endl;
-            //std::cout << cVe << std::endl;
-            
+            //std::cout << task.get_cVe() << std::endl;
+
             vpColVector v = task.computeControlLaw();
             task.print();
-            //for (int i = 0; i < v.size(); i++)
-            //  std::cout << "velocity " << i << ": " << v[i] << std::endl;
+            for (int i = 0; i < v.size(); i++)
+                std::cout << "velocity " << i << ": " << v[i] << std::endl;
+            /**
+            if (task.getError().sumSquare() < 0.0001  && !errorSmallUseArm)
+            {
+                errorSmallUseArm = true;
+                setTaskMode(1); 
+            }
+            else if (errorSmallUseArm == true)
+            {
+                errorSmallUseArm = false;
+                setTaskMode(0); 
+            }
+            */
             //ploter(v, task.getError());
             //if ((ros::Time::now().toSec() - lastPubTime) > 1)
             //{
             //std::cout << "time " << ros::Time::now().toSec() - lastPubTime << std::endl;
             //lastPubTime = ros::Time::now().toSec();
+            if (!cameraVelocity)
+            {
+                float velocity = v[2];
+                std::cout << "velocity joint " << velocity << std::endl;
+                float limit = 0.01;
 
-            float velocity = v[2];
-            std::cout << "velocity joint " << velocity << std::endl;
-            float limit = 0.01;
-
-            if (velocity > limit)
-            {
-                velocity = limit;
-            }
-            if (velocity < -limit)
-            {
-                velocity = -limit;
-            }
-            if (velocity > 0.0005 || velocity < -0.0005)
-            // the joint q is defined opposite direction in the turtlebot pan file.
-            {
-                v[2] = joint_group_pos[0] - velocity;
-                //std::cout << "Joint angle" << current_joint_group_pos[0] - velocity << std::endl;
-                //  move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
-                //move_group.move();                                     // make the arm move
-            }
-            else
-            {
-                v[2] = 0;
+                if (velocity > limit)
+                {
+                    velocity = limit;
+                }
+                if (velocity < -limit)
+                {
+                    velocity = -limit;
+                }
+                if (velocity > 0.0005 || velocity < -0.0005)
+                // the joint q is defined opposite direction in the turtlebot pan file.
+                {
+                    v[2] = joint_group_pos[0] - velocity;
+                    //std::cout << "Joint angle" << current_joint_group_pos[0] - velocity << std::endl;
+                    //  move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
+                    //move_group.move();                                     // make the arm move
+                }
+                else
+                {
+                    v[2] = 0;
+                }
             }
             // }
             return v;
-
         }
         //task.kill();
 
-    }; 
+        bool controlArm()
+        {
+            return errorSmallUseArm;
+        }
+
+    private:
+        vpAdaptiveGain lambda;
+        vpServo task;
+        vpVelocityTwistMatrix cVe;
+        vpMatrix eJe;
+        vpTurtlebotPan robot;
+        bool firstRound = true;
+        bool cameraVelocity = false;
+        bool errorSmallUseArm = false;
+
+        vpVelocityTwistMatrix identityMatcVe;
+        vpMatrix identityMateJe;
+    };
 } // namespace vision

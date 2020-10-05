@@ -15,6 +15,8 @@
 #include <geometry_msgs/Vector3.h>
 #include <thread>
 #include <chrono>
+#include <mutex> // std::mutex, std::unique_lock
+#include <condition_variable>
 #include <ros/callback_queue.h>
 
 // visp includes
@@ -45,6 +47,7 @@
  *
  *  pages used as examples for the code
  * https://docs.opencv.org/3.4/d5/d6f/tutorial_feature_flann_matcher.html
+ * 
  * Author: Sondre Iveland 
  **/
 
@@ -63,6 +66,10 @@ namespace vision
         bool newFeatures = false;
 
         ros::NodeHandle n_a;
+        std::thread spinner_thread_a;
+        std::thread spinner_thread_b;
+        std::mutex mtx;
+        std::condition_variable cv;
 
     public:
         ImageNode()
@@ -72,10 +79,22 @@ namespace vision
             cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 337.3551940917969, 238.88201904296875); //617.0617065429688, 616.9425659179688
             //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0])
             setTargetPoints(cam);
+            spinner_thread_a = std::thread(&vision::ImageNode::initiate, this);
+
+            spinner_thread_b = std::thread(&vision::ImageNode::loop, this);
         }
 
         ~ImageNode()
         {
+
+            mtx.unlock();
+
+            cv.~condition_variable();
+
+            spinner_thread_a.join();
+            std::cout << "spinner_thread_a shut down" << std::endl;
+            spinner_thread_b.join();
+            std::cout << "imagenode shut down" << std::endl;
         }
         void initiate()
         {
@@ -99,20 +118,24 @@ namespace vision
                 ros::SingleThreadedSpinner spinner_a;
                 spinner_a.spin(&callback_queue_cam);
             });
-            std::cout << "Image processing initiated" << std::endl;
+
             //spinner.start();
             ros::waitForShutdown();
-            spinner_thread_a.join();
         }
         /***
          * this function checks if a new image is recived and performs the feature finding.  
          * */
         void loop()
         {
-
-            if (imageRecived) // && (ros::Time::now().toSec() - Wait4Image) > 2
+            while (ros::ok())
             {
-                std::cout << ros::Time::now().toSec() - Wait4Image << "time " << std::endl;
+                std::unique_lock<std::mutex> lck(mtx);
+                while (!imageRecived && ros::ok())
+                {
+                    cv.wait(lck);
+                }
+
+                //std::cout << ros::Time::now().toSec() - Wait4Image << " time between images in loop  " << std::endl;
                 Wait4Image = ros::Time::now().toSec();
                 imageRecived = false;
                 cv::Mat newImg = currentImg;
@@ -126,7 +149,7 @@ namespace vision
                     for (int i = 0; i < numberOfKeypoints; i++)
                     {
                         // for choosing the keypoints.
-                        std::cout << "keypoint: " << i << " " << imageKeypoints[i].pt << "target: " << targetKeypoints[i].pt << std::endl;
+                        // std::cout << "keypoint: " << i << " " << imageKeypoints[i].pt << "target: " << targetKeypoints[i].pt << std::endl;
                         double centre_depth = DEPTH_SCALE * static_cast<double>(depthframe.at<uint16_t>(imageKeypoints[i].pt));
                         //ROS_INFO("centre depth: %.4f", centre_depth);
                         vpImagePoint point(imageKeypoints[i].pt.x, imageKeypoints[i].pt.y);
@@ -145,8 +168,8 @@ namespace vision
 
                     s_Z.buildFrom(s[1].get_x(), s[1].get_y(), s[1].get_Z(), log(s[1].get_Z() / s_Zd.get_Z()));
                     // print the error in the image in cartesian coordinate.
-                    std::cout << s[0].get_x() << " " << s[1].get_x() << " " << s[2].get_x() << " " << s[3].get_x() << std::endl;
-                    std::cout << s[0].get_y() << " " << s[1].get_y() << " " << s[2].get_y() << " " << s[3].get_y() << std::endl;
+                    //std::cout << s[0].get_x() << " " << s[1].get_x() << " " << s[2].get_x() << " " << s[3].get_x() << std::endl;
+                    //std::cout << s[0].get_y() << " " << s[1].get_y() << " " << s[2].get_y() << " " << s[3].get_y() << std::endl;
                 }
             }
         }
@@ -168,7 +191,7 @@ namespace vision
          * */
         bool gets(vpFeaturePoint *_s)
         {
-            if (newFeatures)
+            if (newFeatures && !missingKeypoint)
             {
                 _s[0] = s[0];
                 _s[1] = s[1];
@@ -179,6 +202,7 @@ namespace vision
             }
             else
             {
+             
                 return false;
             }
         }
@@ -251,11 +275,15 @@ namespace vision
         void callback_images(const sensor_msgs::ImageConstPtr &colour_image, const sensor_msgs::ImageConstPtr &depth_image)
         {
             //ROS_INFO("got image");
+            std::unique_lock<std::mutex> lck(mtx);
 
             // Get image message as an OpenCV Mat object (most functions you use for image processing will want this)
             currentImg = cv_bridge::toCvShare(colour_image, sensor_msgs::image_encodings::BGR8)->image; //sensor_msgs::image_encodings::BGR8
             currentDepth = cv_bridge::toCvCopy(depth_image, sensor_msgs::image_encodings::TYPE_16UC1)->image;
             imageRecived = true;
+            cv.notify_all();
+            lck.unlock();
+            // std::cout << " got image  " << std::endl;
 
             //currentDepth
             //cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
