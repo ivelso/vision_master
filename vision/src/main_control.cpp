@@ -14,7 +14,7 @@
  * */
 int main(int argc, char **argv)
 {
-    ROS_INFO("Starting ROS main control node");
+    ROS_INFO("Starting ROS visual control node");
     ros::init(argc, argv, "main_control");
 
     static ros::AsyncSpinner spinner(2);
@@ -62,11 +62,11 @@ int main(int argc, char **argv)
     {
         //image_processing.loop();
 
-        if (image_processing.gets(s) && (ros::Time::now().toSec() - lastPubTime > 3))
+        if (image_processing.gets(s) && (ros::Time::now().toSec() - lastPubTime > 2)) //3
         {
             for (int i = 0; i < numberOfKeypoints; i++)
             {
-                visualFeatureLog << s[i].get_x() - sd[i].get_x() << "," << s[i].get_y() - sd[i].get_y() << ","<<s[i].get_Z() - sd[i].get_Z()<<",";
+                visualFeatureLog << s[i].get_x() - sd[i].get_x() << "," << s[i].get_y() - sd[i].get_y() << "," << s[i].get_Z() - sd[i].get_Z() << ",";
             }
             visualFeatureLog << "\n";
             ROS_INFO("getRobot Pos");
@@ -77,33 +77,55 @@ int main(int argc, char **argv)
                 //swith the control method to arm control
                 if (!armControl)
                 {
-                    visualControl.setTaskMode(1);
+                    visualControl.setControlMode(1);
                     armControl = true;
                 }
-                vpColVector v = visualControl.loop(robotPos);
+                vpColVector v = visualControl.getVelocity(robotPos);
                 armLog << v[1] << "," << v[2] << "," << -v[0] << ",\n";
 
                 ROS_INFO("set joint Pos");
-                robotController.moveXYZcoord(v[1], v[2], -v[0]);
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                // robotController.moveXYZcoord(v[1], v[2], -v[0]);
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             else
             {
+                double center = 0;
+                for (int i = 0; i < 4; i++)
+                {
+                    // std::cout << "keypoint coord " << s[i].get_y() << std::endl;
+                    center += s[i].get_y();
+                }
+                //std::cout << "center error " << center / 4 << std::endl;
+
+                if (center > 0.01)
+                {
+                    center = 0.01;
+                }
+                else if (center < -0.01)
+                {
+                    center = -0.01;
+                }
+                robotController.setPositonJoints(robotPos[0] - center);
+
                 //swith the control method to base control
                 if (armControl)
                 {
-                    visualControl.setTaskMode(0);
+                    visualControl.setControlMode(0);
                     armControl = false;
                 }
-                vpColVector v = visualControl.loop(robotPos);
+                if (abs(center) < 0.01)
+                {
+                    vpColVector v = visualControl.getVelocity(robotPos);
 
-                ROS_INFO("set joint Pos");
-                baseLog << v[0] << "," << v[1] << "," << v[2] << ",\n";
+                    ROS_INFO("set joint Pos");
+                    baseLog << v[0] << "," << v[1] << "," << v[2] << ",\n";
 
-                robotController.setPositonJoints(v[2]);
-                ROS_INFO("move base ");
-                robotController.setVelocityBase(v[0], v[1]);
-                driving = true;
+                    //robotController.setPositonJoints(v[2]);
+                    ROS_INFO("move base ");
+                    //robotController.setVelocityBase(v[0], v[1]);
+
+                    driving = true;
+                }
                 wait4Image = ros::Time::now().toSec();
             }
             lastPubTime = ros::Time::now().toSec();

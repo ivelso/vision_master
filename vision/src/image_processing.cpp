@@ -75,8 +75,8 @@ namespace vision
         ImageNode()
         {
             lastPubTime = ros::Time::now().toSec();
-            Wait4Image = ros::Time::now().toSec();
-            cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 337.3551940917969, 238.88201904296875); //617.0617065429688, 616.9425659179688
+            Wait4Image = ros::Time::now().toSec();                                                                          //337.3551940917969, 238.88201904296875
+            cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 238.88201904296875, 337.3551940917969); //617.0617065429688, 616.9425659179688
             //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0])
             setTargetPoints(cam);
             spinner_thread_a = std::thread(&vision::ImageNode::initiate, this);
@@ -202,7 +202,7 @@ namespace vision
             }
             else
             {
-             
+
                 return false;
             }
         }
@@ -419,6 +419,7 @@ namespace vision
             for (int i = 0; i < numberOfKeypoints; i++)
             {
                 imageKeypoints.push_back(sortedKeypoints[i]);
+                std::cout << " keypoint number" << i<< " "<<imageKeypoints[i].pt << "size" << imageKeypoints[i].size << std::endl;
             }
 
             if (missingKeypoint || debug)

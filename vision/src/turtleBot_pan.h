@@ -179,8 +179,8 @@ protected:
   {
     // Position of pan head end effector frame in the camera frame
     double cx = -0.032;
-    double cy = -0.241; //-0.065; // distance between camera and tilt axis
-    double cz = -0.213;
+    double cy = 0.156; //-0.241; //-0.065; // distance between camera and tilt axis
+    double cz = 0.070; //-0.213;
     vpTranslationVector etc(cx, cy, cz);
     vpRotationMatrix eRc;
     eRc[0][0] = eRc[1][1] = eRc[2][2] = 0;
@@ -202,7 +202,7 @@ protected:
   void set_mMp()
   {
     // Position of the pan head in the mobile platform frame
-    double px = -0.8; // distance between the pan frame and the robot frame
+    double px = -0.08; // distance between the pan frame and the robot frame
     double py = 0;
     double pz = 0.118;
     vpTranslationVector mtp;
@@ -236,8 +236,8 @@ protected:
   //@}
 
 protected:
-  vpHomogeneousMatrix mMp_; // constant
-  vpHomogeneousMatrix pMe_; // depends on q pan
+  vpHomogeneousMatrix mMp_; // constant// mobile base to rotational axis 
+  vpHomogeneousMatrix pMe_; // depends on q pan// rotational axis to camera 
 };
 
 #endif

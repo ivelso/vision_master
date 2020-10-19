@@ -74,7 +74,14 @@ namespace vision
             task.addFeature(s[2], sd[2]);
             task.addFeature(s[3], sd[3]);
         }
-        void setTaskMode(int mode)
+
+        /***
+         * 
+         * set the control mode to base or the arm 
+         * 1 is arm control 
+         * 0 is the base control 
+         * */
+        void setControlMode(int mode)
         {
             if (mode == 1)
             {
@@ -97,7 +104,7 @@ namespace vision
         /**
         * The loop of the control. 
         **/
-        vpColVector loop(std::vector<double> &joint_group_pos)
+        vpColVector getVelocity(std::vector<double> &joint_group_pos)
         {
 
             // the loop as loong as ros is not in shut down.
