@@ -94,10 +94,10 @@ namespace vision
 
             std::vector<double> joint_group_positions;
             // Now, let's modify one of the joints, plan to the new joint space goal and visualize the plan.
-            joint_group_positions.push_back(0.0);   // radians
-            joint_group_positions.push_back(-0.1);  // radians
-            joint_group_positions.push_back(-0.05); // radians
-            joint_group_positions.push_back(0.0);   // radians
+            joint_group_positions.push_back(0.0);    // radians 0
+            joint_group_positions.push_back(-1.300); // radians -0.1
+            joint_group_positions.push_back(0.834);  // radians -0.05
+            joint_group_positions.push_back(0.460);  // radians 0
 
             move_group->setJointValueTarget(joint_group_positions);
 
@@ -126,10 +126,10 @@ namespace vision
         {
 
             std::vector<double> joint_group_positions;
-            joint_group_positions.push_back(q1);    // radians
-            joint_group_positions.push_back(-0.1);  // radians
-            joint_group_positions.push_back(-0.05); // radians
-            joint_group_positions.push_back(0.0);   // radians
+            joint_group_positions.push_back(q1);     // radians
+            joint_group_positions.push_back(-1.300); // radians -0.1
+            joint_group_positions.push_back(0.834);  // radians -0.05
+            joint_group_positions.push_back(0.460);  // radians 0
 
             move_group->setJointValueTarget(joint_group_positions);
             ROS_INFO("robot control: setting joint q1");
@@ -170,7 +170,7 @@ namespace vision
         void setVelocityBase(float x = 0, float ohmega = 0)
         {
 
-            float MaxVelocity = 0.2;
+            float MaxVelocity = 0.3;
             if (x > MaxVelocity)
             {
                 x = MaxVelocity;
@@ -197,9 +197,8 @@ namespace vision
 
             ROS_INFO("robot control: setting wheel speed x= %.4f ohmega= %.4f", x, ohmega);
             // publish to the topic given in the initiation function.
-      
+
             this->publisher_state.publish(movemsg);
-     
         }
     };
 } // namespace vision

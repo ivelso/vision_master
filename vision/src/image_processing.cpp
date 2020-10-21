@@ -76,7 +76,7 @@ namespace vision
         {
             lastPubTime = ros::Time::now().toSec();
             Wait4Image = ros::Time::now().toSec();
-            cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 337.3551940917969, 238.88201904296875); //617.0617065429688, 616.9425659179688
+            cam.initPersProjWithoutDistortion(617.0617065429688, 616.9425659179688, 238.88201904296875, 337.3551940917969); //617.0617065429688, 616.9425659179688
             //K=[617.0617065429688, 0.0, 337.3551940917969, 0.0, 616.9425659179688, 238.88201904296875, 0.0, 0.0, 1.0])
             setTargetPoints(cam);
             spinner_thread_a = std::thread(&vision::ImageNode::initiate, this);
@@ -202,7 +202,7 @@ namespace vision
             }
             else
             {
-             
+
                 return false;
             }
         }
@@ -298,27 +298,34 @@ namespace vision
         void setTargetPoints(vpCameraParameters &cam)
         {
 
+            /**
+                number0 [363.3482971, 133.8180237]size 62.46672821
+                number1 [455.8394165, 134.9686279]size 62.62507248
+                number2 [362.3335266, 226.3401947]size 62.68143082
+                number3 [454.3296204, 227.7560577]size 62.89684677
+            */
             // set point in pixel coord this is also showed in the image
-            targetKeypoints.push_back(cv::KeyPoint(317.6557007, 177.0446625, 40));
-            targetKeypoints.push_back(cv::KeyPoint(391.3921814, 171.9816589, 40));
-            targetKeypoints.push_back(cv::KeyPoint(323.1187439, 250.4288635, 40));
-            targetKeypoints.push_back(cv::KeyPoint(396.3076172, 245.7163239, 40));
+            targetKeypoints.push_back(cv::KeyPoint(363.3482971, 133.8180237, 62));
+            targetKeypoints.push_back(cv::KeyPoint(455.8394165, 134.9686279, 62));
+            targetKeypoints.push_back(cv::KeyPoint(362.3335266, 226.3401947, 62));
+            targetKeypoints.push_back(cv::KeyPoint(454.3296204, 227.7560577, 62));
 
             vpImagePoint point(targetKeypoints[0].pt.x, targetKeypoints[0].pt.y);
             vpFeatureBuilder::create(sd[0], cam, point);
-            sd[0].set_Z(0.251);
+            float z = 0.2;
+            sd[0].set_Z(z);
 
             point.set_ij(targetKeypoints[1].pt.x, targetKeypoints[1].pt.y);
             vpFeatureBuilder::create(sd[1], cam, point);
-            sd[1].set_Z(0.251);
+            sd[1].set_Z(z);
 
             point.set_ij(targetKeypoints[2].pt.x, targetKeypoints[2].pt.y);
             vpFeatureBuilder::create(sd[2], cam, point);
-            sd[2].set_Z(0.251);
+            sd[2].set_Z(z);
 
             point.set_ij(targetKeypoints[3].pt.x, targetKeypoints[3].pt.y);
             vpFeatureBuilder::create(sd[3], cam, point);
-            sd[3].set_Z(0.251);
+            sd[3].set_Z(z);
 
             s_Zd.buildFrom(sd[1].get_x(), sd[1].get_y(), sd[1].get_Z(), 0);
         }
@@ -419,6 +426,7 @@ namespace vision
             for (int i = 0; i < numberOfKeypoints; i++)
             {
                 imageKeypoints.push_back(sortedKeypoints[i]);
+                std::cout << " number" << i << " " << imageKeypoints[i].pt << "size " << imageKeypoints[i].size << std::endl;
             }
 
             if (missingKeypoint || debug)

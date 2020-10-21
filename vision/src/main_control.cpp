@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     ROS_INFO("Starting ROS main control node");
     ros::init(argc, argv, "main_control");
 
-    static ros::AsyncSpinner spinner(2);
+    static ros::AsyncSpinner spinner(3);
     spinner.start();
     ros::NodeHandle nh;
     vision::ImageNode image_processing;
@@ -66,13 +66,13 @@ int main(int argc, char **argv)
         {
             for (int i = 0; i < numberOfKeypoints; i++)
             {
-                visualFeatureLog << s[i].get_x() - sd[i].get_x() << "," << s[i].get_y() - sd[i].get_y() << ","<<s[i].get_Z() - sd[i].get_Z()<<",";
+                visualFeatureLog << (s[i].get_x() - sd[i].get_x()) << "," << (s[i].get_y() - sd[i].get_y()) << "," << (s[i].get_Z() - sd[i].get_Z() )<< ",";
             }
             visualFeatureLog << "\n";
             ROS_INFO("getRobot Pos");
             robotController.getRobotPos(robotPos);
             ROS_INFO("visual loop ");
-            if (s[0].get_Z() < 0.20)
+            if (s[0].get_Z() < 0.20 && false)
             {
                 //swith the control method to arm control
                 if (!armControl)
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 
                 ROS_INFO("set joint Pos");
                 robotController.moveXYZcoord(v[1], v[2], -v[0]);
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             else
             {
@@ -104,6 +104,10 @@ int main(int argc, char **argv)
                 ROS_INFO("move base ");
                 robotController.setVelocityBase(v[0], v[1]);
                 driving = true;
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                robotController.setVelocityBase(0, 0);
+                driving = false;
+
                 wait4Image = ros::Time::now().toSec();
             }
             lastPubTime = ros::Time::now().toSec();
@@ -114,9 +118,10 @@ int main(int argc, char **argv)
         {
             robotController.setVelocityBase(0, 0);
             driving = false;
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        // std::this_thread::sleep_for(std::chrono::seconds(3));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(4));
     }
 
     baseLog << std::flush;

@@ -51,8 +51,8 @@ namespace vision
             identityMateJe = task.get_eJe();
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
             task.setInteractionMatrixType(vpServo::MEAN, vpServo::PSEUDO_INVERSE);
-            lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-            task.setLambda(lambda);
+            //lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+            task.setLambda(0.04); //lambda
         }
         ~VisualControl()
         {
@@ -85,11 +85,11 @@ namespace vision
                 task.setLambda(lambda);
                 cameraVelocity = true;
             }
-            if (mode == 0)
+            if (mode == 0) // control of base
             {
                 task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
                 lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-                task.setLambda(lambda);
+                task.setLambda(0.04);
                 cameraVelocity = false;
             }
             //task.setInteractionMatrixType(vpServo::CURRENT);
@@ -137,9 +137,9 @@ namespace vision
             //lastPubTime = ros::Time::now().toSec();
             if (!cameraVelocity)
             {
-                float velocity = v[2];
+                float velocity = v[2]*0.5;
                 std::cout << "velocity joint " << velocity << std::endl;
-                float limit = 0.01;
+                float limit = 0.02;
 
                 if (velocity > limit)
                 {
