@@ -4,6 +4,6 @@
     <include file="$(find turtlebot3_manipulation_moveit_config)/launch/move_group.launch">
     </include> 
 
-    <node pkg="vision" type="image_processing" name="image_processing_node" output="screen">
+    <node pkg="vision" type="main_control" name="visual_control_node" output="screen">
     </node>
 </launch>

@@ -299,20 +299,36 @@ namespace vision
         {
 
             /**
+             * target base under testing 
                 number0 [363.3482971, 133.8180237]size 62.46672821
                 number1 [455.8394165, 134.9686279]size 62.62507248
                 number2 [362.3335266, 226.3401947]size 62.68143082
                 number3 [454.3296204, 227.7560577]size 62.89684677
+
+                target base for the start of arm  0.20m distance 
+                number0 [279.2230835, 119.4342499]size 61.64368439
+ number1 [369.9680176, 120.9694443]size 61.70742798
+ number2 [278.3810425, 210.6756592]size 61.51100159
+ number3 [368.5756836, 212.0699921]size 61.64148712
+
+
+                target robot arm  0.15m distance 
+                number0 [247.702713, 141.868866]size 127.3522491
+                number1 [438.4987488, 145.2969971]size 127.9952316
+                number2 [245.0750732, 327.6256104]size 130.3392792
+                number3 [436.42099, 338.6986389]size 132.885437
+
             */
+
             // set point in pixel coord this is also showed in the image
-            targetKeypoints.push_back(cv::KeyPoint(363.3482971, 133.8180237, 62));
-            targetKeypoints.push_back(cv::KeyPoint(455.8394165, 134.9686279, 62));
-            targetKeypoints.push_back(cv::KeyPoint(362.3335266, 226.3401947, 62));
-            targetKeypoints.push_back(cv::KeyPoint(454.3296204, 227.7560577, 62));
+            targetKeypoints.push_back(cv::KeyPoint(247.702713, 141.868866, 127));
+            targetKeypoints.push_back(cv::KeyPoint(438.4987488, 145.2969971, 127));
+            targetKeypoints.push_back(cv::KeyPoint(245.0750732, 327.6256104, 127));
+            targetKeypoints.push_back(cv::KeyPoint(436.42099, 338.6986389, 127));
 
             vpImagePoint point(targetKeypoints[0].pt.x, targetKeypoints[0].pt.y);
             vpFeatureBuilder::create(sd[0], cam, point);
-            float z = 0.2;
+            double z = 0.15;
             sd[0].set_Z(z);
 
             point.set_ij(targetKeypoints[1].pt.x, targetKeypoints[1].pt.y);
@@ -359,7 +375,7 @@ namespace vision
             std::vector<KeyPoint> keyPoints;
             std::vector<KeyPoint> GoodkeyPoints;
             Ptr<SimpleBlobDetector> detector = SimpleBlobDetector::create(params);
-            float averageSize = 0;
+            double averageSize = 0;
             // Detect blobs
             detector->detect(frame, keyPoints);
 
@@ -371,7 +387,7 @@ namespace vision
             }
             averageSize = averageSize / keyPoints.size();
             // find the average size of the keypoints to filter out other keypoints that is not the target.
-            float sumX = 0, sumY = 0, minX = 0, minY = 0;
+            double sumX = 0, sumY = 0, minX = 0, minY = 0;
             for (int i = 0; i < keyPoints.size(); i++)
             {
                 if (std::abs(keyPoints[i].size - averageSize) < (averageSize / 8) && GoodkeyPoints.size() < numberOfKeypoints)
@@ -391,8 +407,8 @@ namespace vision
                 }
             }
             KeyPoint sortedKeypoints[4];
-            float centerX = sumX / numberOfKeypoints;
-            float centerY = sumY / numberOfKeypoints;
+            double centerX = sumX / numberOfKeypoints;
+            double centerY = sumY / numberOfKeypoints;
             if (GoodkeyPoints.size() < 4)
             {
                 missingKeypoint = true;

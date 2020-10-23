@@ -51,8 +51,8 @@ namespace vision
             identityMateJe = task.get_eJe();
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
             task.setInteractionMatrixType(vpServo::MEAN, vpServo::PSEUDO_INVERSE);
-            //lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-            task.setLambda(0.04); //lambda
+            lambda.initStandard(2.25, 0.005, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+            task.setLambda(0.02);                 //0.04
         }
         ~VisualControl()
         {
@@ -66,13 +66,13 @@ namespace vision
      * */
         void setFeatures(vpFeaturePoint *s, vpFeaturePoint *sd)
         {
-
+            sptr = s;
             //add the features to the control
-            task.addFeature(s[0], sd[0]); //, vpFeaturePoint::selectX()  vpFeaturePoint::selectY()
-            task.addFeature(s[1], sd[1]);
+            task.addFeature(s[0], sd[0], vpFeaturePoint::selectY()); //, vpFeaturePoint::selectX()  vpFeaturePoint::selectY()
+            task.addFeature(s[1], sd[1], vpFeaturePoint::selectY());
             //task.addFeature(s_Z, s_Zd);
-            task.addFeature(s[2], sd[2]);
-            task.addFeature(s[3], sd[3]);
+            task.addFeature(s[2], sd[2], vpFeaturePoint::selectY());
+            task.addFeature(s[3], sd[3], vpFeaturePoint::selectY());
         }
         void setTaskMode(int mode)
         {
@@ -81,15 +81,15 @@ namespace vision
                 task.setServo(vpServo::EYEINHAND_CAMERA);
                 task.set_cVe(identityMatcVe);
                 task.set_eJe(identityMateJe);
-                lambda.initStandard(0.5, 0.05, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-                task.setLambda(lambda);
+                //lambda.initStandard(0.5, 0.05, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
+                task.setLambda(0.05);
                 cameraVelocity = true;
             }
             if (mode == 0) // control of base
             {
                 task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
                 lambda.initStandard(0.7, 0.1, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-                task.setLambda(0.04);
+                task.setLambda(0.04);              //0.04
                 cameraVelocity = false;
             }
             //task.setInteractionMatrixType(vpServo::CURRENT);
@@ -115,9 +115,22 @@ namespace vision
             //std::cout << task.get_cVe() << std::endl;
 
             vpColVector v = task.computeControlLaw();
+            v[0] = v[0] * 1.5; // because the x direction is found to be slow.
             task.print();
+            double vmax = 0.3;
+            // make the velocity not go above the max and change the range for the velocity if it is above the range.
             for (int i = 0; i < v.size(); i++)
+            {
+                if (abs(v[i]) > vmax)
+                {
+                    for (int nmb = 0; nmb < v.size(); nmb++)
+                    {
+                        v[nmb] = (vmax * v[nmb]) / abs(v[i]);
+                    }
+                }
                 std::cout << "velocity " << i << ": " << v[i] << std::endl;
+            }
+
             /**
             if (task.getError().sumSquare() < 0.0001  && !errorSmallUseArm)
             {
@@ -135,37 +148,53 @@ namespace vision
             //{
             //std::cout << "time " << ros::Time::now().toSec() - lastPubTime << std::endl;
             //lastPubTime = ros::Time::now().toSec();
-            if (!cameraVelocity)
-            {
-                float velocity = v[2]*0.5;
-                std::cout << "velocity joint " << velocity << std::endl;
-                float limit = 0.02;
 
-                if (velocity > limit)
-                {
-                    velocity = limit;
-                }
-                if (velocity < -limit)
-                {
-                    velocity = -limit;
-                }
-                if (velocity > 0.0005 || velocity < -0.0005)
-                // the joint q is defined opposite direction in the turtlebot pan file.
-                {
-                    v[2] = joint_group_pos[0] - velocity;
-                    //std::cout << "Joint angle" << current_joint_group_pos[0] - velocity << std::endl;
-                    //  move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
-                    //move_group.move();                                     // make the arm move
-                }
-                else
-                {
-                    v[2] = 0;
-                }
-            }
             // }
             return v;
         }
         //task.kill();
+
+        /***
+         * return the velocity to control the arm with only gettting the target in the centre. 
+         * simple p control where the error is the only thing used. 
+         * */
+        void getVelocityToGetPointsInCentre(std::vector<double> &velocity)
+        {
+
+            double centerX = 0;
+            double centerY = 0;
+            double centerZ = 0.005;
+            for (int i = 0; i < 4; i++)
+            {
+
+                centerY += sptr[i].get_y();
+                centerX += sptr[i].get_x();
+            }
+            centerY = centerY * 0.01;
+            centerX = centerX * 0.01;
+            std::cout << centerY << " " << centerX << std::endl;
+            if (centerY > 0.005)
+            {
+                centerY = 0.005;
+            }
+            else if (centerY < -0.005)
+            {
+                centerY = -0.005;
+            }
+            if (centerX > 0.005)
+            {
+                centerX = 0.005;
+            }
+            else if (centerX < -0.005)
+            {
+                centerX = -0.005;
+            }
+            velocity.clear();
+
+            velocity.push_back(centerX);
+            velocity.push_back(centerY);
+            velocity.push_back(centerZ);
+        }
 
         bool controlArm()
         {
@@ -181,8 +210,9 @@ namespace vision
         bool firstRound = true;
         bool cameraVelocity = false;
         bool errorSmallUseArm = false;
+        vpFeaturePoint *sptr;
 
         vpVelocityTwistMatrix identityMatcVe;
         vpMatrix identityMateJe;
-    };
+    }; // namespace vision
 } // namespace vision

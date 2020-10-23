@@ -107,7 +107,7 @@ namespace vision
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
-        void setPositonJoints(float q1, float q2, float q3, float q4)
+        void setPositonJoints(double q1, double q2, double q3, double q4)
         {
             std::vector<double> joint_group_positions;
             joint_group_positions.push_back(q1); // radians
@@ -122,7 +122,44 @@ namespace vision
             jointsMoved = true;
             //  move_group->move();
         }
-        void setPositonJoints(float q1)
+
+        void setVelocityJoint(double v1)
+        {
+
+            std::vector<double> joint_group_pos;
+
+            moveit::core::RobotStatePtr current_state = move_group->getCurrentState();
+
+            current_state->copyJointGroupPositions(joint_model_group, joint_group_pos);
+
+            double velocity = v1 * 0.5;
+            std::cout << "velocity joint " << velocity << std::endl;
+            double limit = 0.15; //0.02
+
+            if (velocity > limit)
+            {
+                velocity = limit;
+            }
+            if (velocity < -limit)
+            {
+                velocity = -limit;
+            }
+            if (velocity > 0.0005 || velocity < -0.0005)
+            // the joint q is defined opposite direction in the turtlebot pan file.
+            {
+                velocity = joint_group_pos[0] - velocity;
+                setPositonJoints(velocity);
+                //std::cout << "Joint angle" << current_joint_group_pos[0] - velocity << std::endl;
+                //  move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
+                //move_group.move();                                     // make the arm move
+            }
+            else
+            {
+                velocity = 0;
+            }
+        }
+
+        void setPositonJoints(double q1)
         {
 
             std::vector<double> joint_group_positions;
@@ -167,10 +204,11 @@ namespace vision
         }
 
         // set the speed of the robot in x and W direction where ohmega is around z axis.
-        void setVelocityBase(float x = 0, float ohmega = 0)
+        void setVelocityBase(double x = 0, double ohmega = 0)
         {
 
-            float MaxVelocity = 0.3;
+            
+            double MaxVelocity = 0.3;
             if (x > MaxVelocity)
             {
                 x = MaxVelocity;
@@ -195,10 +233,10 @@ namespace vision
             movemsg.linear = linMove;
             movemsg.angular = rotMove;
 
-            ROS_INFO("robot control: setting wheel speed x= %.4f ohmega= %.4f", x, ohmega);
             // publish to the topic given in the initiation function.
 
             this->publisher_state.publish(movemsg);
+            ROS_INFO("robot control: setting wheel speed x= %.4f ohmega= %.4f", x, ohmega);
         }
     };
 } // namespace vision
