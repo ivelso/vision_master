@@ -15,4 +15,5 @@ $roslaunch turtlebot3_bringup turtlebot3_robot.launch
 Separat computer 
 $roslaunch vision vision.launch 
 
-The library VISP and VISp_ROS must be installed on the separate computer.  
+The library OpenCV, VISP and VISp_ROS must be installed on the separate computer.  
+The communication to the arm is thru MoveIT library
