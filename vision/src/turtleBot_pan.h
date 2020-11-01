@@ -1,3 +1,4 @@
+
 /****************************************************************************
  * modified by Sondre Iveland to work for the Turtlebot3 waffle with openManipulator. 
  * The camera as the TCP and is mounted on top of the gripper. 
@@ -47,25 +48,17 @@
 #include <visp3/robot/vpUnicycle.h>
 
 /*!
-
   \class vpPioneerPan
-
   \ingroup group_robot_real_unicycle group_robot_simu_unicycle
-
   \brief Generic functions for Pioneer mobile robots equiped with a pan head.
-
   This class provides common features for Pioneer mobile robots equiped with a
   pan head.
-
   This robot has three control velocities \f$(v_x, w_z, \dot{q_1})\f$, the
   translational and rotational velocities of the mobile platform, the pan head
   velocity respectively.
-
   The figure below shows the position of the frames that are used to model the
   robot. The end effector frame is here located at the pan axis.
-
   \image html pioneer-pan.png
-
   Considering
   \f[{\bf v} = {^e}{\bf J}_e \;
   \left(\begin{array}{c}
@@ -80,7 +73,6 @@
   velocities of the mobile platform, \f$\dot{q_1}\f$ the joint velocity of the
   pan head and \f$\bf v\f$ the six dimention velocity skew expressed at point
   E in frame E, the robot jacobian is given by:
-
   \f[
   {^e}{\bf J}_e = \left(\begin{array}{ccc}
   c_1  & -c_1*p_y - s_1*p_x & 0   \\
@@ -92,10 +84,8 @@
   \end{array}
   \right)
   \f]
-
   with \f$p_x, p_y\f$ the position of the head base frame in the mobile
   platform frame located at the middle point between the two weels.
-
 */
 class VISP_EXPORT vpTurtlebotPan : public vpUnicycle
 {
@@ -123,13 +113,11 @@ public:
   /*!
     Set the robot jacobian expressed at point E the end effector frame located
     on the pan head.
-
     Considering \f${\bf v} = {^e}{\bf J}_e \; [v_x, w_z, \dot{q_1}]\f$ with
     \f$(v_x, w_z)\f$ respectively the translational and rotational control
     velocities of the mobile platform, \f$\dot{q_1}\f$ the joint velocity of
     the pan head and \f$\bf v\f$ the six dimention velocity skew expressed at
     point E in frame E, the robot jacobian is given by:
-
     \f[
     {^e}{\bf J}_e = \left(\begin{array}{ccc}
     c_1  & -c_1*p_y - s_1*p_x & 0   \\
@@ -141,10 +129,8 @@ public:
     \end{array}
     \right)
     \f]
-
     with \f$p_x, p_y\f$ the position of the head base frame in the mobile
     platform frame located at the middle point between the two weels.
-
   */
   void set_eJe(double q_pan)
   {
@@ -178,9 +164,9 @@ protected:
   void set_cMe()
   {
     // Position of pan head end effector frame in the camera frame
-    double cx = -0.032;
-    double cy = -0.241; //-0.065; // distance between camera and tilt axis
-    double cz = -0.213;
+    double cx =   -0.032;     //-0.032;
+    double cy = -0.156;      //-0.241; //-0.065; // distance between camera and tilt axis
+    double cz = -0.055;        //0.070; //-0.213;vp 
     vpTranslationVector etc(cx, cy, cz);
     vpRotationMatrix eRc;
     eRc[0][0] = eRc[1][1] = eRc[2][2] = 0;
@@ -202,7 +188,7 @@ protected:
   void set_mMp()
   {
     // Position of the pan head in the mobile platform frame
-    double px = -0.8; // distance between the pan frame and the robot frame
+    double px = -0.08; // distance between the pan frame and the robot frame
     double py = 0;
     double pz = 0.118;
     vpTranslationVector mtp;
@@ -218,9 +204,7 @@ protected:
   /*!
     Set the transformation between the pan head reference frame and the
     end-effector frame.
-
     \param q : Position in rad of the pan axis.
-
     */
   void set_pMe(const double q)
   {
@@ -236,8 +220,9 @@ protected:
   //@}
 
 protected:
-  vpHomogeneousMatrix mMp_; // constant
-  vpHomogeneousMatrix pMe_; // depends on q pan
+  vpHomogeneousMatrix mMp_; // constant// mobile base to rotational axis 
+  vpHomogeneousMatrix pMe_; // depends on q pan// rotational axis to camera 
 };
 
 #endif
+
