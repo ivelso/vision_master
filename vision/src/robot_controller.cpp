@@ -133,7 +133,7 @@ namespace vision
             current_state->copyJointGroupPositions(joint_model_group, joint_group_pos);
 
             double velocity = v1 * 0.5;
-            std::cout << "velocity joint " << velocity << std::endl;
+
             double limit = 0.15; //0.02
 
             if (velocity > limit)
@@ -144,11 +144,12 @@ namespace vision
             {
                 velocity = -limit;
             }
-            if (velocity > 0.0005 || velocity < -0.0005)
+            if (velocity > 0.0001 || velocity < -0.0001)
             // the joint q is defined opposite direction in the turtlebot pan file.
             {
                 velocity = joint_group_pos[0] - velocity;
                 setPositonJoints(velocity);
+                std::cout << "new position joint " << velocity << std::endl;
                 //std::cout << "Joint angle" << current_joint_group_pos[0] - velocity << std::endl;
                 //  move_group.setJointValueTarget(joint_group_positions); // set joint position for the arm
                 //move_group.move();                                     // make the arm move
@@ -207,7 +208,6 @@ namespace vision
         void setVelocityBase(double x = 0, double ohmega = 0)
         {
 
-            
             double MaxVelocity = 0.3;
             if (x > MaxVelocity)
             {

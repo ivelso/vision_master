@@ -175,8 +175,8 @@ namespace vision
         }
 
         /**
- * get the desired features.  
- * **/
+        * get the desired features.  
+        * **/
         void getsd(vpFeaturePoint *_sd)
         {
 
@@ -307,9 +307,9 @@ namespace vision
 
                 target base for the start of arm  0.20m distance 
                 number0 [279.2230835, 119.4342499]size 61.64368439
- number1 [369.9680176, 120.9694443]size 61.70742798
- number2 [278.3810425, 210.6756592]size 61.51100159
- number3 [368.5756836, 212.0699921]size 61.64148712
+                 number1 [369.9680176, 120.9694443]size 61.70742798
+                 number2 [278.3810425, 210.6756592]size 61.51100159
+                 number3 [368.5756836, 212.0699921]size 61.64148712
 
 
                 target robot arm  0.15m distance 
@@ -318,6 +318,10 @@ namespace vision
                 number2 [245.0750732, 327.6256104]size 130.3392792
                 number3 [436.42099, 338.6986389]size 132.885437
 
+ targetKeypoints.push_back(cv::KeyPoint(363.3482971, 133.8180237, 62));
+            targetKeypoints.push_back(cv::KeyPoint(455.8394165, 134.9686279, 62));
+            targetKeypoints.push_back(cv::KeyPoint(362.3335266, 226.3401947, 62));
+            targetKeypoints.push_back(cv::KeyPoint(454.3296204, 227.7560577, 62));
             */
 
             // set point in pixel coord this is also showed in the image
@@ -464,13 +468,72 @@ namespace vision
             keypoints = targetKeypoints;
         }
 
+        /**
+         * surf keypoints. find keypoints in the image
+         **/
+        void findSurfFeaturePoints(cv::Mat &frame)
+        {
+            int minHessian = 400;
+            Ptr<SURF> detector = SURF::create(minHessian);
+            std::vector<KeyPoint> keypoints;
+            cv::Mat descriptor;
+            detector->detectAndCompute(frame, noArray(), keypoints, descriptor);
+            if (firstRound == true)
+            {
+                targetKeypoints = keypoints;
+                targetDescriptor = descriptor;
+                targetFrame = frame;
+                firstRound = false;
+            }
+            else
+            {
+                //Ptr<DescriptorMatcher> matcher = BFMatcher::create();
+                //std::vector<DMatch> matches;
+                //matcher -> knnMatch(descriptor, targetDescriptor, matches,10);
+                //printf("image1:%zd keypoints are found.\n", matches.size();
+                Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
+                std::vector<std::vector<DMatch>> knn_matches;
+                if (targetDescriptor.empty() != true && descriptor.empty() != true)
+                {
+                    //cvError(0, "MatchFinder", "1st descriptor empty", __FILE__, __LINE__);
+                    //if (descriptor.empty())
+                    ///  cvError(0, "MatchFinder", "2nd descriptor empty", __FILE__, __LINE__);
+                    matcher->knnMatch(targetDescriptor, descriptor, knn_matches, 2);
+                    //-- Filter matches using the Lowe's ratio test
+                    const float ratio_thresh = 0.7f;
+                    std::vector<DMatch> good_matches;
+                    for (size_t i = 0; i < knn_matches.size(); i++)
+                    {
+                        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+                        {
+                            good_matches.push_back(knn_matches[i][0]);
+                        }
+                    }
+                    if (good_matches.size() > 0)
+                    {
+                        //-- Draw matches
+                        Mat img_matches;
+                        drawMatches(targetFrame, targetKeypoints, frame, keypoints, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+                        //-- Show detected matches
+                        imshow("Good Matches", img_matches);
+                    }
+                }
+                else
+                {
+                    ROS_INFO("missing descriptors from the image stream ");
+                }
+                cv::waitKey(2);
+            }
+        }
+
     private:
         //ros::Subscriber subscriber_colour_image, subscriber_depth;
         ros::NodeHandle nh;
 
         std::vector<KeyPoint> targetKeypoints, imageKeypoints;
         cv::Mat currentImg, currentDepth;
-
+        cv::Mat targetDescriptor;
+        cv::Mat targetFrame;
         static constexpr double DEPTH_SCALE = 0.001;
         static const int numberOfKeypoints = 4;
         //features for the control

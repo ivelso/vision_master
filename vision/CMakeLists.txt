@@ -45,7 +45,7 @@ endmacro()
 
 
 
-build_node(visiontest_node)
+
 
 build_node(main_control)
 

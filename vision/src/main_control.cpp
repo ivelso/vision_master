@@ -73,9 +73,9 @@ int main(int argc, char **argv)
             ROS_INFO("getRobot Pos");
             robotController.getRobotPos(robotPos);
             ROS_INFO("visual loop ");
-            if (s[0].get_Z() < 0.20)
+            if (s[0].get_Z() < 0.20 )
             {
-                /*
+
                 //swith the control method to arm control
                 if (!armControl)
                 {
@@ -83,17 +83,21 @@ int main(int argc, char **argv)
                     armControl = true;
                 }
 
-                vpColVector v = visualControl.loop(robotPos);
-                armLog << v[2] << "," << v[1] << "," << -v[0] << ",\n";
-
+                vpColVector velocity = visualControl.loop(robotPos);
+                armLog << velocity[2] << "," << velocity[1] << "," << -velocity[0] << ",\n";
+                robotController.moveXYZcoord(velocity[2], -velocity[1], -velocity[0]);
                 ROS_INFO("set joint Pos");
-                */
+
+                /**
+                 // un comment this to use the own algortihm for the arm. The arm will then move 0.05m to ward the target and try to get the features in the centre of the image. 
+                 
                 std::vector<double> velocity;
                 visualControl.getVelocityToGetPointsInCentre(velocity);
                 armLog << velocity[2] << "," << velocity[1] << "," << -velocity[0] << ",\n";
                 std::cout << -velocity[0] << " center x " << -velocity[1] << std::endl;
                 robotController.moveXYZcoord(velocity[2], -velocity[1], -velocity[0]);
                 std::this_thread::sleep_for(std::chrono::seconds(2));
+                */
             }
             else
             {
@@ -135,6 +139,9 @@ int main(int argc, char **argv)
         //ros::spinOnce();
         //loop_rate.sleep();
         std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        baseLog << std::flush;
+        armLog << std::flush;
+        visualFeatureLog << std::flush;
         // ros::Time::;
     }
 

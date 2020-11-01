@@ -52,7 +52,7 @@ namespace vision
             task.setServo(vpServo::EYEINHAND_L_cVe_eJe);
             task.setInteractionMatrixType(vpServo::MEAN, vpServo::PSEUDO_INVERSE);
             lambda.initStandard(2.25, 0.005, 30); // lambda(0)=4, lambda(oo)=0.4 and lambda'(0)=30
-            task.setLambda(0.02);                 //0.04
+            task.setLambda(0.001);                //0.02 worked good for the Y coord                 //0.04 worked for all coord
         }
         ~VisualControl()
         {
@@ -100,7 +100,6 @@ namespace vision
         vpColVector loop(std::vector<double> &joint_group_pos)
         {
 
-            // the loop as loong as ros is not in shut down.
             if (!cameraVelocity)
             {
                 robot.set_eJe(joint_group_pos[0]);
@@ -115,9 +114,11 @@ namespace vision
             //std::cout << task.get_cVe() << std::endl;
 
             vpColVector v = task.computeControlLaw();
-            v[0] = v[0] * 1.5; // because the x direction is found to be slow.
+            // v[0] = v[0]*1.5 ; // because the x direction is found to be slow.
+            //v[2] = v[2]*1.8 ;
+            //  v[2] = -v[2];
             task.print();
-            double vmax = 0.3;
+            double vmax = 0.30;
             // make the velocity not go above the max and change the range for the velocity if it is above the range.
             for (int i = 0; i < v.size(); i++)
             {
@@ -164,6 +165,7 @@ namespace vision
             double centerX = 0;
             double centerY = 0;
             double centerZ = 0.005;
+            double vmax = 0.005;
             for (int i = 0; i < 4; i++)
             {
 
@@ -172,28 +174,23 @@ namespace vision
             }
             centerY = centerY * 0.01;
             centerX = centerX * 0.01;
-            std::cout << centerY << " " << centerX << std::endl;
-            if (centerY > 0.005)
-            {
-                centerY = 0.005;
-            }
-            else if (centerY < -0.005)
-            {
-                centerY = -0.005;
-            }
-            if (centerX > 0.005)
-            {
-                centerX = 0.005;
-            }
-            else if (centerX < -0.005)
-            {
-                centerX = -0.005;
-            }
             velocity.clear();
 
             velocity.push_back(centerX);
             velocity.push_back(centerY);
             velocity.push_back(centerZ);
+            // scale the output so max is the highest velocity
+            for (int i = 0; i < velocity.size(); i++)
+            {
+                if (abs(velocity[i]) > vmax)
+                {
+                    for (int nmb = 0; nmb < velocity.size(); nmb++)
+                    {
+                        velocity[nmb] = (vmax * velocity[nmb]) / abs(velocity[i]);
+                    }
+                }
+                std::cout << "velocity " << i << ": " << velocity[i] << std::endl;
+            }
         }
 
         bool controlArm()
